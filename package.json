@@ -1,0 +1,36 @@
+{
+  "name": "rei-scheduler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "",
+  "scripts": {
+    "start": "webpack-dev-server --mode=development --config ./webpack/webpack.dev.js",
+    "build": "webpack --mode=production --config ./webpack/webpack.prod.js --progress --profile --bail"
+  },
+  "devDependencies": {
+    "base-href-webpack-plugin": "^2.0.0",
+    "clean-webpack-plugin": "^3.0.0",
+    "css-loader": "^3.5.3",
+    "html-loader": "^1.1.0",
+    "html-webpack-plugin": "^4.2.1",
+    "style-loader": "^1.2.1",
+    "ts-loader": "^7.0.1",
+    "webpack": "^4.43.0",
+    "webpack-bundle-analyzer": "^3.7.0",
+    "webpack-cli": "^3.3.11",
+    "webpack-dev-server": "^3.10.3",
+    "webpack-filter-warnings-plugin": "^1.2.1",
+    "webpack-merge": "^4.2.2"
+  },
+  "dependencies": {
+    "@material-ui/core": "^4.9.12",
+    "@material-ui/icons": "^4.9.1",
+    "@types/react": "^16.9.34",
+    "@types/react-bootstrap": "^1.0.1",
+    "@types/react-dom": "^16.9.7",
+    "bootstrap": "^4.4.1",
+    "react": "^16.13.1",
+    "react-dom": "^16.13.1",
+    "typescript": "^3.8.3"
+  }
+}
