@@ -48,7 +48,8 @@ export function parseCsv(f: File, done: (result: Property[]) => void, err: (msg:
         return;
       }
 
-      let prop : any = { pid: ""+line };
+      let prop : any = { pid: ""+line, schedule: [] };
+      //TODO: need to parse existing schedule
       Object.keys(HEADER_FIELDS).forEach(h => {
         prop[HEADER_FIELDS[h].name] = (results.data as any)[h];
       });

@@ -4,7 +4,7 @@ import { useDropzone } from 'react-dropzone';
 import { Typography, makeStyles, Button, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, TablePagination, Theme } from '@material-ui/core';
 import CloudUploadIcon from '@material-ui/icons/CloudUpload';
 import { isCSV, parseCsv } from './csvutil';
-import { Property } from './property';
+import { Property, buildSchedule } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
 
 const DATE_FORMAT = "MM/DD/YYYY";
@@ -64,6 +64,13 @@ export default function App() {
   const [sorted, setSorted] = React.useState<SortData<Property>>({ col: columnData[0], dir: 'asc' });
   const [filterText, setFilterText] = React.useState<string>('');
   const classes = STYLES();
+
+  if (dataLoaded.length > 0) {
+    buildSchedule(dataLoaded, {
+      maxPerDay: 5,
+      maxPerWeek: 15
+    });
+  }
 
   let items = dataLoaded;
   if (filterText) {
@@ -152,6 +159,15 @@ export default function App() {
         id: 'leaseEnd',
         title: 'Lease End',
         value: (dto) => dto.leaseEnd?.format(DATE_FORMAT)
+      }, {
+        id: 'schedule',
+        title: 'Schedule',
+        value: (dto) => {
+          if (dto.message) {
+            return dto.message;
+          }
+          return dto.schedule.map(m => m.d.format(DATE_FORMAT)).join(' ')
+        }
       }
     ];
 
@@ -205,6 +221,7 @@ const STYLES = makeStyles((theme: Theme) => ({
   //    flexShrink: 0
   // },
   table: {
+    minWidth: '600px'
   },
   tableHead: {
   },
