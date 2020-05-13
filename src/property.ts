@@ -90,6 +90,6 @@ export function buildSchedule(data: Property[], options: ScheduleOptions) {
       p.schedule.push({ d: moment(tomorrow), import: false });
     }
 
-    console.log(tomorrow.format("yyyy-mm-dd"));
+    //console.log(tomorrow.format("YYYY-MM-DD"));
   });
 }

@@ -1,7 +1,8 @@
-import moment from 'moment';
+import moment, { isMoment } from 'moment';
 // https://www.papaparse.com/
 import Papa from 'papaparse';
 import { Property } from './property';
+import { DATE_FORMAT } from './App';
 
 const HEADER_FIELDS : {[header:string]:{name: string, type?: string, optional?:boolean}} = {
   "Property Street Address 1":{ name: "address" },
@@ -34,7 +35,7 @@ export function parseCsv(f: File, done: (result: Property[]) => void, err: (msg:
         return "<no data>";
       }
       switch (HEADER_FIELDS[field]?.type) {
-        case "date": return moment(value, "MM/DD/YYYY");
+        case "date": return moment(value, DATE_FORMAT);
         case "number": return parseInt(value);
       }
       return value;
@@ -61,4 +62,38 @@ export function parseCsv(f: File, done: (result: Property[]) => void, err: (msg:
     }
   };
   Papa.parse(f, config);
+}
+
+export function toCSV(data: Property[]) : string {
+  const headers = Object.keys(HEADER_FIELDS);
+  let extras : string[] = [];
+
+  let out = data.map(p => {
+    let rv : any = {};
+    headers.forEach(h => {
+      const head = HEADER_FIELDS[h];
+      let v = (p as any)[head.name];
+
+      switch (head?.type) {
+        case "date": v = (v as moment.Moment)?.format(DATE_FORMAT); break;
+        //case "number": return parseInt(value);
+      }
+
+      rv[h] = v;
+    });
+    p.schedule.forEach((s,i) => {
+      let t = 'Inspection ' + (i+1);
+      rv[t] = s.d.format(DATE_FORMAT);
+      if (extras.length < (i + 1)) {
+        extras.push(t);
+      }
+    });
+    return rv;
+  });
+
+  return Papa.unparse(out, {
+    skipEmptyLines: true,
+    columns: [...headers, ...extras],
+    newline: '\n',
+  });
 }

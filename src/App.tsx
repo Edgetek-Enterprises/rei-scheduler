@@ -3,11 +3,11 @@ import './App.css';
 import { useDropzone } from 'react-dropzone';
 import { Typography, makeStyles, Button, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, TablePagination, Theme } from '@material-ui/core';
 import CloudUploadIcon from '@material-ui/icons/CloudUpload';
-import { isCSV, parseCsv } from './csvutil';
+import { isCSV, parseCsv, toCSV } from './csvutil';
 import { Property, buildSchedule } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
 
-const DATE_FORMAT = "MM/DD/YYYY";
+export const DATE_FORMAT = "MM/DD/YYYY";
 
 const DropZone = (props: {
   handleData: (p: Property[]) => void
@@ -92,6 +92,10 @@ export default function App() {
           onChange={(evt) => setFilterText(evt.target.value ?? '')}
           value={filterText}
         />
+        <Button variant='contained'
+          className={classes.button}
+          onClick={(evt: any) => download()}
+        >Download Schedule CSV</Button>
         <Table
           aria-labelledby="tableTitle"
           className={classes.table}
@@ -205,7 +209,16 @@ export default function App() {
           return false;
        });
     });
- }
+  }
+
+  function download() {
+    const doctag = document.createElement('a');
+    const data = toCSV(dataLoaded);
+    const file = new Blob([data], { type: 'text/csv' });
+    doctag.href = URL.createObjectURL(file);
+    doctag.download = 'rei-schedule.csv';
+    doctag.click();
+  }
 }
 
 const STYLES = makeStyles((theme: Theme) => ({
@@ -278,5 +291,11 @@ const STYLES = makeStyles((theme: Theme) => ({
   title: {
      padding: '20px 0px',
      margin: 'auto auto auto 0',
+  },
+  button: {
+    boxShadow: 'none',
+    '&:hover': {
+      boxShadow: 'none',
+    },
   },
 }));
