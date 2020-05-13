@@ -5,7 +5,9 @@ import { Typography, makeStyles, Button, TableCell, Table, TableHead, TableRow, 
 import CloudUploadIcon from '@material-ui/icons/CloudUpload';
 import { isCSV, parseCsv } from './csvutil';
 import { Property } from './property';
-import { ColumnData, handleSortChange, SortData } from './tableutil';
+import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
+
+const DATE_FORMAT = "MM/DD/YYYY";
 
 const DropZone = (props: {
   handleData: (p: Property[]) => void
@@ -57,10 +59,17 @@ const DropZone = (props: {
 }
 
 export default function App() {
-  const [data, setData] = React.useState<Property[]>([]);
+  const [dataLoaded, setDataLoaded] = React.useState<Property[]>([]);
   const columnData = getColumns();
   const [sorted, setSorted] = React.useState<SortData<Property>>({ col: columnData[0], dir: 'asc' });
+  const [filterText, setFilterText] = React.useState<string>('');
   const classes = STYLES();
+
+  let items = dataLoaded;
+  if (filterText) {
+    items = items.filter(i => filterItems(i, filterText!.toLowerCase()))
+  }
+  items = sortRows(items, sorted);
 
   return <div className="App">
       <header className="App-header">
@@ -68,9 +77,14 @@ export default function App() {
           REI Scheduler
         </p>
       </header>
-      <DropZone handleData={setData} />
-      { data.length > 0 && <>{data.length} properties available.</>}
+      <DropZone handleData={setDataLoaded} />
+      { dataLoaded.length > 0 && <>{dataLoaded.length} properties available.</>}
       <div className={classes.scrollContent}>
+        <input type="text"
+          placeholder='Filter'
+          onChange={(evt) => setFilterText(evt.target.value ?? '')}
+          value={filterText}
+        />
         <Table
           aria-labelledby="tableTitle"
           className={classes.table}
@@ -93,7 +107,7 @@ export default function App() {
               </TableRow>
           </TableHead>
           <TableBody className={classes.scrollContent}>
-              { data.map((p, idx) => {
+              { items.map((p, idx) => {
                 return <TableRow key={p.pid} >
                     {columnData.map((cd, idx) => <TableCell className={classes.tableCell} key={p.pid + '.' + cd.id}
                       scope="row">
@@ -133,16 +147,49 @@ export default function App() {
       }, {
         id: 'leaseStart',
         title: 'Lease Start',
-        value: (dto) => dto.leaseStart?.format("MM/DD/YYYY")
+        value: (dto) => dto.leaseStart?.format(DATE_FORMAT)
       }, {
         id: 'leaseEnd',
         title: 'Lease End',
-        value: (dto) => dto.leaseEnd?.format("MM/DD/YYYY")
+        value: (dto) => dto.leaseEnd?.format(DATE_FORMAT)
       }
     ];
 
     return cols;
   }
+  
+  function filterItems(item: Property, searchString: string) {
+    return searchString.split(';').some(segment => {
+       if (segment.trim().length == 0) return false;
+       return segment.split(' ').every(text => {
+          if (text.trim().length == 0) return false;
+
+          if ((item.address??'').toLowerCase().indexOf(text) > -1) {
+             return true;
+          }
+          if ((item.city ?? '').toLowerCase().indexOf(text) > -1) {
+             return true;
+          }
+          if ((item.state ?? '').toLowerCase().indexOf(text) > -1) {
+             return true;
+          }
+          if ((item.unit ?? '').toLowerCase().indexOf(text) > -1) {
+             return true;
+          }
+          if (((item.zip ?? '') + '').toLowerCase().indexOf(text) > -1) {
+             return true;
+          }
+          if ((item.leaseStart?.format(DATE_FORMAT) ?? '').toLowerCase().indexOf(text) > -1) {
+             return true;
+          }
+          if ((item.leaseEnd?.format(DATE_FORMAT) ?? '').toLowerCase().indexOf(text) > -1) {
+             return true;
+          }
+
+          return false;
+       });
+    });
+ }
 }
 
 const STYLES = makeStyles((theme: Theme) => ({

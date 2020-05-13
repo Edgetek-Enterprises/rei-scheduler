@@ -1,4 +1,4 @@
-import moment from 'moment';
+import { Moment } from 'moment';
 
 export interface Property {
   pid: string;
@@ -7,7 +7,6 @@ export interface Property {
   state?: string;
   zip?: number;
   unit?: string;
-  leaseStart?: moment.Moment;
-  leaseEnd?: moment.Moment;
+  leaseStart?: Moment;
+  leaseEnd?: Moment;
 }
-
