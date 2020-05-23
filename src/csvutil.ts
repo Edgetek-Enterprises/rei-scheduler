@@ -16,6 +16,18 @@ const HEADER_FIELDS : {[header:string]:{name: string, type?: string, optional?:b
 
 const HEADER_INSPECTION_PREFIX = 'Inspection ';
 
+const HEADER_FIELDS_SCHEDULE : {[header:string]:{name: string, type?: string, sched?:boolean}} = {
+  'Inspection Date': {name: 'date', sched: true, type: 'date' },
+  'Inspection Number': {name: 'number', sched: true },
+  'Property Street Address 1':{ name: 'address' },
+  'Property City':{ name: 'city' },
+  'Property State':{ name: 'state' },
+  'Property Zip':{ name: 'zip', type: 'number' },
+  'Unit':{ name: 'unit' },
+  'Lease From':{ name: 'leaseStart', type: 'date'},
+  'Lease To':{ name: 'leaseEnd', type: 'date'}
+}
+
 export function isCSV(f: File) : boolean {
   return f.name.endsWith('.csv');
 }
@@ -97,7 +109,12 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
         }
       });
       hasSchedule = hasSchedule || sched.schedule.length > 0;
-      props.push(prop as Property)
+
+      // Sort inspections in case they are out of order in the input file
+      sched.schedule.sort((a,b) => a.d.unix() - b.d.unix());
+
+      props.push(prop as Property);
+      scheds.push(sched);
     },
     complete: () => {
       console.log('Parsed ' + props.length + ' properties' + (hasSchedule ? ' and schedules' : ''));
@@ -107,7 +124,7 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
   Papa.parse(f, config);
 }
 
-export function toCSV(data: PropertySchedule[]) : string {
+export function toCSVInspections(data: PropertySchedule[]) : string {
   const headers = Object.keys(HEADER_FIELDS);
   let extras : string[] = [];
 
@@ -130,6 +147,62 @@ export function toCSV(data: PropertySchedule[]) : string {
       if (extras.length < (i + 1)) {
         extras.push(t);
       }
+    });
+    return rv;
+  });
+
+  return Papa.unparse(out, {
+    skipEmptyLines: true,
+    columns: [...headers, ...extras],
+    newline: '\n',
+  });
+}
+
+export function toCSVSchedule(data: PropertySchedule[]) : string {
+  interface Row {
+    p: Property;
+    date: moment.Moment;
+    number: number;
+  }
+  // First, transform the schedule into a sorted output
+  let schedule : Row[] = [];
+  data.forEach(ps => {
+    ps.schedule.forEach((s,i) => {
+      schedule.push({
+        p: ps.p,
+        date: s.d,
+        number: i+1
+      });
+    });
+  });
+  schedule.sort((a,b) => {
+    const d = a.date.unix() - b.date.unix();
+    if (d != 0) {
+      return d;
+    }
+    return a.p.address.localeCompare(b.p.address);
+  });
+
+  const headers = Object.keys(HEADER_FIELDS_SCHEDULE);
+  let extras : string[] = [];
+
+  let out = schedule.map(r => {
+    let rv : any = {};
+    headers.forEach(h => {
+      const head = HEADER_FIELDS_SCHEDULE[h];
+      let v = undefined;
+      if (head.sched) {
+        v = (r as any)[head.name];
+      } else {
+        v = (r.p as any)[head.name];
+      }
+
+      switch (head?.type) {
+        case 'date': v = (v as moment.Moment)?.format(DATE_FORMAT); break;
+        //case 'number': return parseInt(value);
+      }
+
+      rv[h] = v;
     });
     return rv;
   });
