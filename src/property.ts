@@ -9,13 +9,17 @@ export interface Property {
   unit?: string;
   leaseStart?: moment.Moment;
   leaseEnd?: moment.Moment;
+}
+
+export interface PropertySchedule {
+  p: Property;
   message?: string;
   schedule: ScheduleItem[];
 }
 
 export interface ScheduleItem {
   d: moment.Moment;
-  import: boolean;
+  isImport: boolean;
 }
 
 export interface ScheduleOptions {
@@ -24,37 +28,40 @@ export interface ScheduleOptions {
 }
 
 //TODO: need a way to pass errors out
-export function buildSchedule(data: Property[], options: ScheduleOptions) {
+export function buildSchedule(data: Property[], options: ScheduleOptions) : PropertySchedule[] {
   // build schedule starting today
   const tomorrow = moment().add(1, 'd').startOf('d');
 
   //console.log(today);
-
-  data.forEach(p => {
+  let rv = data.map<PropertySchedule>(p => {
+    let ps : PropertySchedule = {
+      p,
+      schedule: []
+    };
     // Skip handling of empty units
     if (!p.leaseStart && !p.leaseEnd) {
-      p.message = "Unoccupied";
-      return;
+      ps.message = 'Unoccupied';
+      return ps;
     }
 
     if (!p.leaseStart) {
-      p.message = "Missing lease start";
-      //console.log("Error in property " + p.address + ", missing lease start");
-      return;
+      ps.message = 'Missing lease start';
+      //console.log('Error in property ' + p.address + ', missing lease start');
+      return ps;
     }
     
     //FIXME: need to handle monthly (no end)
     if (!p.leaseEnd) {
-      p.message = "(TODO handle monthly term)";
-      return;
+      ps.message = '(TODO handle monthly term)';
+      return ps;
     }
 
     const start = p.leaseStart!;
     const end = p.leaseEnd!;
 
     if (end.isBefore(tomorrow)) {
-      p.message = "Term ended";
-      return;
+      ps.message = 'Term ended';
+      return ps;
     }
 
     // find 3 month buffer for start and end
@@ -62,34 +69,37 @@ export function buildSchedule(data: Property[], options: ScheduleOptions) {
     let scheduleEnd = moment(end).add(-3, 'months');
 
     if (scheduleEnd.isBefore(tomorrow)) {
-      p.message = "Term end is too soon";
-      //console.log("Error in property " + p.address + ", term end is too soon to schedule dates");
-      return;
+      ps.message = 'Term end is too soon';
+      //console.log('Error in property ' + p.address + ', term end is too soon to schedule dates');
+      return ps;
     }
     if (scheduleEnd.isBefore(scheduleStart)) {
       // property term is narrower than 6 months, schedule asap
-      console.log("Property " + p.pid + " " + p.address + ", has short term, need to schedule asap");
+      console.log('Property ' + p.pid + ' ' + p.address + ', has short term, need to schedule asap');
     }
     if (scheduleStart.isBefore(tomorrow)) {
       scheduleStart = tomorrow;
     }
 
     // flush non-imported dates
-    p.schedule = p.schedule.filter(s => s.import);
+    ps.schedule = ps.schedule.filter(s => s.isImport);
 
     // examine existing schedule to see if there are any gaps
-    p.schedule.sort((a,b) => b.d.unix() - a.d.unix());
+    ps.schedule.sort((a,b) => b.d.unix() - a.d.unix());
 
     // schedule the first one at start, then every 3 months (every quarter year)
     for (let date = moment(scheduleStart); date.isBefore(scheduleEnd); date.add(3, 'months')) {
-      p.schedule.push({ d: moment(date), import: false });
+      ps.schedule.push({ d: moment(date), isImport: false });
     }
 
     // didn't schedule anything - go ahead and push one
-    if (p.schedule.length == 0) {
-      p.schedule.push({ d: moment(tomorrow), import: false });
+    if (ps.schedule.length == 0) {
+      ps.schedule.push({ d: moment(tomorrow), isImport: false });
     }
 
-    //console.log(tomorrow.format("YYYY-MM-DD"));
+    //console.log(tomorrow.format('YYYY-MM-DD'));
+    return ps;
   });
+
+  return rv;
 }
