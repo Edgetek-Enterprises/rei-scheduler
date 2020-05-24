@@ -14,6 +14,7 @@ const HEADER_FIELDS : {[header:string]:{name: string, type?: string, optional?:b
   'Lease To':{ name: 'leaseEnd', type: 'date', optional: true}
 }
 
+const HEADER_INSPECTION_REGEX = /Inspection \d+/;
 const HEADER_INSPECTION_PREFIX = 'Inspection ';
 
 const HEADER_FIELDS_SCHEDULE : {[header:string]:{name: string, type?: string, sched?:boolean}} = {
@@ -48,8 +49,8 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
         const h = HEADER_FIELDS[field];
         // not a Property field
         if (!h) {
-          if (String(field).startsWith(HEADER_INSPECTION_PREFIX)) {
-            return moment(value, DATE_FORMAT);
+          if (HEADER_INSPECTION_REGEX.test(String(field))) {
+            return undefined;
           }
           // Handle this in 'step' where we can abort parse
           return value;
@@ -63,6 +64,9 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
       switch (HEADER_FIELDS[field]?.type) {
         case 'date': return moment(value, DATE_FORMAT);
         case 'number': return parseInt(value);
+      }
+      if (HEADER_INSPECTION_REGEX.test(String(field))) {
+        return moment(value, DATE_FORMAT);
       }
       return value;
     },
@@ -96,9 +100,9 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
         const h = HEADER_FIELDS[key];
         if (h) {
           prop[h.name] = rowObj[key];
-        } else if (key.startsWith(HEADER_INSPECTION_PREFIX)) {
+        } else if (HEADER_INSPECTION_REGEX.test(key)) {
             const d = rowObj[key] as moment.Moment;
-            if (d) {
+            if (d && d.isValid()) {
               sched.schedule.push({
                 d,
                 isImport: true
@@ -106,6 +110,8 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
             }
         } else {
           err('Unhandled column in input file: ' + key);
+          parser.abort();
+          return;
         }
       });
       hasSchedule = hasSchedule || sched.schedule.length > 0;

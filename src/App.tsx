@@ -79,7 +79,7 @@ export default function App() {
       const pss = buildSchedule(propertyList, {
         maxPerDay: 5,
         maxPerWeek: 15
-      });
+      }, priorSchedule);
       setComputedSchedule(pss);
     }
   }, [propertyList, priorSchedule]);
