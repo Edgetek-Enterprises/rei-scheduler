@@ -24,8 +24,37 @@ export interface ScheduleItem {
 }
 
 export interface ScheduleOptions {
+  scheduleMax: moment.Moment;
   maxPerDay: number;
   maxPerWeek: number;
+  pushBlackout: (d: moment.Moment) => moment.Moment;
+}
+
+interface ScheduleEntry {
+  p: Property;
+  ps: PropertySchedule;
+  si: ScheduleItem;
+}
+
+function sortSchedule(s: ScheduleEntry[]) {
+  s.sort((a,b) => {
+    const d = a.si.d.unix() - b.si.d.unix();
+    if (d != 0) {
+      return d;
+    }
+
+    // Group by zip code
+    const z = (a.p.zip ?? 0) - (b.p.zip ?? 0);
+    if (z != 0) {
+      return z;
+    }
+
+    const c = (a.p.city ?? '').localeCompare(b.p.city ?? '');
+    if (c != 0) {
+      return c;
+    }
+    return a.p.address.localeCompare(b.p.address);
+  });
 }
 
 //TODO: need a way to pass errors out
@@ -36,13 +65,8 @@ export function buildSchedule(data: Property[], options: ScheduleOptions, prev: 
     //TODO: incorporate previous schedule into new base schedule
   }
 
-  interface Entry {
-    p: Property;
-    ps: PropertySchedule;
-    si: ScheduleItem;
-  }
   // transform the schedule into discrete events
-  let schedule : Entry[] = [];
+  let schedule : ScheduleEntry[] = [];
   base.forEach(ps => {
     ps.schedule.forEach((s,i) => {
       schedule.push({
@@ -52,19 +76,9 @@ export function buildSchedule(data: Property[], options: ScheduleOptions, prev: 
       });
     });
   });
-  schedule.sort((a,b) => {
-    const d = a.si.d.unix() - b.si.d.unix();
-    if (d != 0) {
-      return d;
-    }
-    const c = (a.p.city ?? '').localeCompare(b.p.city ?? '');
-    if (c != 0) {
-      return c;
-    }
-    return a.p.address.localeCompare(b.p.address);
-  });
+  sortSchedule(schedule);
 
-  //TODO: manipulte schedule here
+  schedule = applyScheduleConstraints(schedule, options);
 
   let out : { [pid:string] : PropertySchedule } = {};
   schedule.forEach(s => {
@@ -153,6 +167,81 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions, prev: 
 
     return ps;
   });
+
+  return rv;
+}
+
+function applyScheduleConstraints(schedule: ScheduleEntry[], options: ScheduleOptions) : ScheduleEntry[] {
+  let rv = schedule;
+  let start = 0;
+  let curr = start;
+
+  while (curr < rv.length) {
+    let entry = rv[curr];
+    if (entry.si.isImport) {
+      ++curr;
+      continue;
+    }
+    let date = entry.si.d;
+    if (date.isAfter(options.scheduleMax)) {
+      rv = rv.splice(curr, 1);
+      curr = start;
+      continue;
+    }
+
+    let open = options.pushBlackout(date);
+    if (!date.isSame(open)) {
+      entry.si.d = open;
+      sortSchedule(rv);
+      curr = start;
+      continue;
+    }
+
+    const sameDay = rv.filter((se,i) => i != curr && se.si.d.isSame(date));
+    if (sameDay.length > options.maxPerDay - 1) {
+      capacityShift(sameDay, options.maxPerDay - 1);
+      sortSchedule(rv);
+      curr = start;
+      continue;
+    }
+
+    const sameWeek = rv.filter((se,i) => i != curr && se.si.d.week() == date.week());
+    if (sameWeek.length > options.maxPerWeek - 1) {
+      capacityShift(sameWeek, options.maxPerWeek - 1);
+      sortSchedule(rv);
+      curr = start;
+      continue;
+    }
+
+    function capacityShift(same: ScheduleEntry[], max: number) {
+      let countToMove = same.length - max;
+      let toMove : ScheduleEntry[] = [];
+      let sameGroup = same.filter(se => se.p.zip === entry.p.zip);
+      let otherGroups = same.filter(se => se.p.zip !== entry.p.zip);
+      
+      if (otherGroups.length >= countToMove) {
+        // if there are enough to move in a different group than curr, take the whole group
+        while (countToMove > 0 && otherGroups.length > 1) {
+          const mv = otherGroups.filter(se => se.p.zip === otherGroups[otherGroups.length-1].p.zip);
+          mv.forEach(se => toMove.push(se));
+          countToMove -= mv.length;
+          otherGroups = otherGroups.filter(se => !mv.includes(se));
+        }
+      }
+      if (countToMove > 0 && otherGroups.length > 0) {
+        otherGroups.forEach(se => toMove.push(se));
+        countToMove -= otherGroups.length;
+      }
+      
+      // still more to move and groups exhausted, just pick the tail
+      if (countToMove > 0) {
+        toMove.push(...sameGroup.slice(sameGroup.length - countToMove));
+      }
+      toMove.forEach(e => e.si.d.add(1, 'day'));
+    }
+
+    ++curr;
+  }
 
   return rv;
 }

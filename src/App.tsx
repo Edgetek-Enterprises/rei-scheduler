@@ -1,10 +1,11 @@
 import React from 'react';
+import moment from 'moment';
 import './App.css';
 import { useDropzone } from 'react-dropzone';
 import { Typography, makeStyles, Button, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, TablePagination, Theme } from '@material-ui/core';
 import CloudUploadIcon from '@material-ui/icons/CloudUpload';
 import { isCSV, parseCsv, toCSVInspections, toCSVSchedule } from './csvutil';
-import { Property, buildSchedule, PropertySchedule } from './property';
+import { Property, buildSchedule, PropertySchedule, ScheduleOptions } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
 
 export const DATE_FORMAT = 'MM/DD/YYYY';
@@ -76,10 +77,7 @@ export default function App() {
 
   React.useEffect(() => {
     if (propertyList.length > 0) {
-      const pss = buildSchedule(propertyList, {
-        maxPerDay: 5,
-        maxPerWeek: 15
-      }, priorSchedule);
+      const pss = buildSchedule(propertyList, getOptions(), priorSchedule);
       setComputedSchedule(pss);
     }
   }, [propertyList, priorSchedule]);
@@ -164,6 +162,36 @@ export default function App() {
     }
     setPriorSchedule(ps);
     return undefined;
+  }
+
+  function getOptions() : ScheduleOptions {
+    const blackoutDates : moment.Moment[] = [];
+
+    return {
+      scheduleMax: moment().add(3, 'years'),
+      maxPerDay: 5,
+      maxPerWeek: 7,
+      pushBlackout: (d) => {
+        let pass = false;
+        while (!pass) {
+          pass = true;
+
+          let dow = d.day();
+          if (dow == 0 || dow == 6) {
+            d = d.clone().add(1, 'day');
+            pass = false;
+          }
+
+          if (blackoutDates.find(b => b.isSame(d))) {
+            d = d.clone().add(1, 'day');
+            pass = false;
+          }
+          // TODO: if day is blacked out, push and don't pass
+        }
+
+        return d;
+      }
+    };
   }
 
   function getColumns() : ColumnData<PropertySchedule>[] {
