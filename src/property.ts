@@ -118,27 +118,31 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions, prev: 
 			//console.log('Error in property ' + p.address + ', missing lease start');
 			return ps;
 		}
-		
-		//FIXME: need to handle monthly (no end)
-		if (!p.leaseEnd) {
-			ps.message = '(TODO handle monthly term)';
-			return ps;
-		}
 
 		const start = p.leaseStart!;
+		let scheduleStart = moment(start).add(3, 'months');
+		if (scheduleStart.isBefore(tomorrow)) {
+			scheduleStart = tomorrow;
+		}
+		const scheduleMax = moment(tomorrow).add(3, 'years');
+		
+		if (!p.leaseEnd) {
+			for (let date = moment(scheduleStart); date.isBefore(scheduleMax); date.add(3, 'months')) {
+				ps.schedule.push({ d: moment(date) });
+			}
+			
+			return ps;
+		}
+		
 		const end = p.leaseEnd!;
-
+		let scheduleEnd = moment(end).add(-3, 'months');
+		if (scheduleEnd.isAfter(scheduleMax)) {
+			scheduleEnd = scheduleMax;
+		}
+		
 		if (end.isBefore(tomorrow)) {
 			ps.message = 'Term ended';
 			return ps;
-		}
-
-		// find 3 month buffer for start and end
-		let scheduleStart = moment(start).add(3, 'months');
-		let scheduleEnd = moment(end).add(-3, 'months');
-		const scheduleMax = moment(tomorrow).add(3, 'years');
-		if (scheduleEnd.isAfter(scheduleMax)) {
-			scheduleEnd = scheduleMax;
 		}
 
 		if (scheduleEnd.isBefore(tomorrow)) {
@@ -150,9 +154,6 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions, prev: 
 			// property term is narrower than the configured window, schedule asap
 			console.log('Property ' + p.pid + ' ' + p.address + ', has short term, need to schedule asap');
 			ps.schedule.push({ d: moment(tomorrow), isAsap: true });
-		}
-		if (scheduleStart.isBefore(tomorrow)) {
-			scheduleStart = tomorrow;
 		}
 
 		// schedule the first one at start, then every 3 months (every quarter year)
@@ -180,6 +181,7 @@ function applyScheduleConstraints(schedule: ScheduleEntry[], options: ScheduleOp
 		let entry = rv[curr];
 		if (entry.si.isImport) {
 			++curr;
+			start = curr;
 			continue;
 		}
 		let date = entry.si.d;
@@ -241,6 +243,7 @@ function applyScheduleConstraints(schedule: ScheduleEntry[], options: ScheduleOp
 		}
 
 		++curr;
+		start = curr;
 	}
 
 	return rv;
