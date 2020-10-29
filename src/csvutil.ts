@@ -4,6 +4,10 @@ import Papa from 'papaparse';
 import { Property, PropertySchedule, ScheduleItem } from './property';
 import { DATE_FORMAT } from './App';
 
+/**
+ * These columns are used for the property input file as well as for the previous schedule input file.
+ * The previous schedule input file also contains inspection columns
+ */
 const HEADER_FIELDS : {[header:string]:{name: string, type?: string, optional?:boolean}} = {
 	'Property Street Address 1':{ name: 'address' },
 	'Property City':{ name: 'city' },
@@ -11,12 +15,16 @@ const HEADER_FIELDS : {[header:string]:{name: string, type?: string, optional?:b
 	'Property Zip':{ name: 'zip', type: 'number' },
 	'Unit':{ name: 'unit', optional: true},
 	'Lease From':{ name: 'leaseStart', type: 'date', optional: true},
-	'Lease To':{ name: 'leaseEnd', type: 'date', optional: true}
+	'Lease To':{ name: 'leaseEnd', type: 'date', optional: true},
+	'Move-out':{ name: 'moveOut', type: 'date', optional: true},
 }
 
 const HEADER_INSPECTION_REGEX = /Inspection \d+/;
 const HEADER_INSPECTION_PREFIX = 'Inspection ';
 
+/**
+ * These columns are used for the one-inspection-per-row export
+ */
 const HEADER_FIELDS_SCHEDULE : {[header:string]:{name: string, type?: string, sched?:boolean}} = {
 	'Inspection Date': {name: 'date', sched: true, type: 'date' },
 	'Inspection Number': {name: 'number', sched: true },
@@ -25,8 +33,9 @@ const HEADER_FIELDS_SCHEDULE : {[header:string]:{name: string, type?: string, sc
 	'Property State':{ name: 'state' },
 	'Property Zip':{ name: 'zip', type: 'number' },
 	'Unit':{ name: 'unit' },
-	'Lease From':{ name: 'leaseStart', type: 'date'},
-	'Lease To':{ name: 'leaseEnd', type: 'date'}
+	'Lease From':{ name: 'leaseStart', type: 'date' },
+	'Lease To':{ name: 'leaseEnd', type: 'date' },
+	'Move-out':{ name: 'moveOut', type: 'date' },
 }
 
 export function isCSV(f: File) : boolean {
@@ -43,7 +52,7 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
 		header: true,
 		worker: false,
 		skipEmptyLines: true,
-		
+
 		transform: (value, field) => {
 			if (value.length <= 0) {
 				const h = HEADER_FIELDS[field];
@@ -130,6 +139,9 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
 	Papa.parse(f, config);
 }
 
+/**
+ * Generates CSV of inspection schedule, one property per row
+ */
 export function toCSVInspections(data: PropertySchedule[]) : string {
 	const headers = Object.keys(HEADER_FIELDS);
 	let extras : string[] = [];
@@ -164,6 +176,9 @@ export function toCSVInspections(data: PropertySchedule[]) : string {
 	});
 }
 
+/**
+ * Generates CSV of inspection schedule, one inspection per row
+ */
 export function toCSVSchedule(data: PropertySchedule[]) : string {
 	interface Row {
 		p: Property;

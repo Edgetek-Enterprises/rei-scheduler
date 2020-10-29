@@ -9,6 +9,7 @@ export interface Property {
 	unit?: string;
 	leaseStart?: moment.Moment;
 	leaseEnd?: moment.Moment;
+	moveOut?: moment.Moment;
 }
 
 export interface PropertySchedule {
@@ -125,21 +126,21 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions, prev: 
 			scheduleStart = tomorrow;
 		}
 		const scheduleMax = moment(tomorrow).add(3, 'years');
-		
+
 		if (!p.leaseEnd) {
 			for (let date = moment(scheduleStart); date.isBefore(scheduleMax); date.add(3, 'months')) {
 				ps.schedule.push({ d: moment(date) });
 			}
-			
+
 			return ps;
 		}
-		
+
 		const end = p.leaseEnd!;
 		let scheduleEnd = moment(end).add(-3, 'months');
 		if (scheduleEnd.isAfter(scheduleMax)) {
 			scheduleEnd = scheduleMax;
 		}
-		
+
 		if (end.isBefore(tomorrow)) {
 			ps.message = 'Term ended';
 			return ps;
@@ -220,7 +221,7 @@ function applyScheduleConstraints(schedule: ScheduleEntry[], options: ScheduleOp
 			let toMove : ScheduleEntry[] = [];
 			let sameGroup = same.filter(se => se.p.zip === entry.p.zip);
 			let otherGroups = same.filter(se => se.p.zip !== entry.p.zip);
-			
+
 			if (otherGroups.length >= countToMove) {
 				// if there are enough to move in a different group than curr, take the whole group
 				while (countToMove > 0 && otherGroups.length > 1) {
@@ -234,7 +235,7 @@ function applyScheduleConstraints(schedule: ScheduleEntry[], options: ScheduleOp
 				otherGroups.forEach(se => toMove.push(se));
 				countToMove -= otherGroups.length;
 			}
-			
+
 			// still more to move and groups exhausted, just pick the tail
 			if (countToMove > 0) {
 				toMove.push(...sameGroup.slice(sameGroup.length - countToMove));

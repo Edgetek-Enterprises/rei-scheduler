@@ -31,7 +31,7 @@ const DropZone = (props: {
 		setProcessing(true);
 		parseCsv(f, (r, ps) => {
 				const msg = props.handleData(r, ps);
-				setProcessing(false); 
+				setProcessing(false);
 				if (msg) {
 					setErrMsg(msg);
 				}
@@ -224,6 +224,10 @@ export default function App() {
 				title: 'Lease End',
 				value: (dto) => dto.p.leaseEnd?.format(DATE_FORMAT)
 			}, {
+				id: 'moveOut',
+				title: 'Move-out',
+				value: (dto) => dto.p.moveOut?.format(DATE_FORMAT)
+			}, {
 				id: 'schedule',
 				title: 'Schedule',
 				value: (dto) => {
@@ -237,7 +241,7 @@ export default function App() {
 
 		return cols;
 	}
-	
+
 	function filterItems(item: PropertySchedule, searchString: string) {
 		return searchString.split(';').some(segment => {
 			 if (segment.trim().length == 0) return false;
