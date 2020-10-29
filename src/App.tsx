@@ -11,7 +11,7 @@ import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
 export const DATE_FORMAT = 'MM/DD/YYYY';
 
 const DropZone = (props: {
-	message: string;
+	message: any;
 	handleData: (p: Property[], ps: PropertySchedule[] | undefined) => string | undefined
 }) => {
 	const [errMsg, setErrMsg] = React.useState<string | undefined>();
@@ -48,7 +48,7 @@ const DropZone = (props: {
 		multiple: false
 	})
 
-	let divCls = 'dropZone dropzoneParagraph MuiTypography-root MuiTypography-h5 dropzoneTextStyle';
+	let divCls = 'dropZone MuiTypography-root MuiTypography-h5 dropzoneTextStyle';
 	if (isDragActive) {
 		divCls += ' stripes';
 	} else if (errMsg) {
@@ -94,8 +94,12 @@ export default function App() {
 					REI Scheduler
 				</p>
 			</header>
-			<DropZone message={'Drop the base properties list file here or click to select file'} handleData={propertyListUpdated} />
-			<DropZone message={'Drop the previous schedule file here or click to select file'} handleData={priorScheduleUpdated} />
+			<div className='dropzones'>
+				<DropZone message={<>Drop the <strong>base properties list</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+					handleData={propertyListUpdated} />
+				<DropZone message={<>Drop the <strong>previous schedule</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+					handleData={priorScheduleUpdated} />
+			</div>
 			{ propertyList.length > 0 && <span style={{color: '#0f0' }}>{propertyList.length} properties available.</span>}
 			{ propertyList.length == 0 && <span style={{color: '#f00' }}>{propertyList.length} properties available.</span>}
 			{ priorSchedule && <span style={{color: '#0f0', marginLeft: '10px' }}>Previous schedule loaded.</span>}

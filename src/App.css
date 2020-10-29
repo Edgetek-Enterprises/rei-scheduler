@@ -1,53 +1,55 @@
 .App {
-  text-align: center;
+	text-align: center;
 }
 
 .App-header {
-  background-color: #282c34;
-  /* min-height: 100vh; */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* justify-content: center; */
-  font-size: calc(10px + 2vmin);
-  color: white;
+	background-color: #282c34;
+	/* min-height: 100vh; */
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	/* justify-content: center; */
+	font-size: calc(10px + 2vmin);
+	color: white;
 }
 
 .App-link {
-  color: #61dafb;
+	color: #61dafb;
+}
+
+.dropzones {
+	width: 100%;
 }
 
 .dropZone {
-  position: relative;
-  width: 50%;
-  min-height: 100px;
-  background-color: #F0F0F0;
-  border: dashed;
-  border-color: #C8C8C8;
-  cursor: pointer;
-  box-sizing: border-box
+	display: inline-block;
+	position: relative;
+	width: 290px;
+	min-height: 100px;
+	margin: 20px 20px 20px 20px;
+	background-color: #F0F0F0;
+	border: dashed;
+	border-color: #C8C8C8;
+	cursor: pointer;
+	box-sizing: border-box
 }
 .stripes {
-  border: solid;
-  background-image: repeating-linear-gradient(-45deg, #F0F0F0, #F0F0F0 25px, #C8C8C8 25px, #C8C8C8 50px);
-  animation: progress 2s linear infinite !important;
-  background-size: 150% 100%
+	border: solid;
+	background-image: repeating-linear-gradient(-45deg, #F0F0F0, #F0F0F0 25px, #C8C8C8 25px, #C8C8C8 50px);
+	animation: progress 2s linear infinite !important;
+	background-size: 150% 100%
 }
 .rejectStripes {
-  background-image: repeating-linear-gradient(-45deg, #fc8785, #fc8785 25px, #f4231f 25px, #f4231f 50px)
+	background-image: repeating-linear-gradient(-45deg, #fc8785, #fc8785 25px, #f4231f 25px, #f4231f 50px)
 }
 .processingStripes {
-  background-image: repeating-linear-gradient(-45deg, #87fc85, #87fc85 25px, #23f41f 25px, #23f41f 50px)
+	background-image: repeating-linear-gradient(-45deg, #87fc85, #87fc85 25px, #23f41f 25px, #23f41f 50px)
 }
 .dropzoneTextStyle {
-  text-align: center
+	text-align: center
 }
 .uploadIconSize {
-  width: 51;
-  height: 51;
-  color: #909090
-}
-.dropzoneParagraph {
-  margin-bottom: 20px;
-  margin-top: 20px;
+	width: 51;
+	height: 51;
+	color: #909090
 }
