@@ -10,12 +10,10 @@ export interface Property {
 	leaseStart?: moment.Moment;
 	leaseEnd?: moment.Moment;
 	moveOut?: moment.Moment;
-}
 
-export interface PropertySchedule {
-	p: Property;
-	message?: string;
-	schedule: ScheduleItem[];
+	scheduleMessage?: string;
+	schedule?: ScheduleItem[];
+	tenant?: TenantDetails;
 }
 
 export interface ScheduleItem {
@@ -33,7 +31,6 @@ export interface ScheduleOptions {
 
 interface ScheduleEntry {
 	p: Property;
-	ps: PropertySchedule;
 	si: ScheduleItem;
 }
 
@@ -59,39 +56,45 @@ function sortSchedule(s: ScheduleEntry[]) {
 }
 
 //TODO: need a way to pass errors out
-export function buildSchedule(data: Property[], options: ScheduleOptions, prev: PropertySchedule[] | undefined) : PropertySchedule[] {
-	let base = computeScheduleDates(data, options, prev);
+export function buildSchedule(data: Property[], options: ScheduleOptions, prev: Property[] | undefined) : Property[] {
+	let scheduledProps = [...data];
 
 	if (prev) {
-		//TODO: incorporate previous schedule into new base schedule
+		//TODO: incorporate previous schedule into base schedule
 	}
+
+	scheduledProps = computeScheduleDates(scheduledProps, options);
 
 	// transform the schedule into discrete events
 	let schedule : ScheduleEntry[] = [];
-	base.forEach(ps => {
-		ps.schedule.forEach((s,i) => {
+	scheduledProps.forEach(p => {
+		p.schedule!.forEach((s,i) => {
 			schedule.push({
-				p: ps.p,
+				p,
 				si: s,
-				ps,
 			});
 		});
 	});
 	sortSchedule(schedule);
 
+	// Apply scheduling to all discrete schedule events
 	schedule = applyScheduleConstraints(schedule, options);
 
-	let out : { [pid:string] : PropertySchedule } = {};
+	// Recombine schedule events back into properties
+	let out : { [pid:string] : Property } = {};
 	schedule.forEach(s => {
-		let p = out[s.p.pid] ?? { p: s.p, message: s.ps.message, schedule: []};
-		out[s.p.pid] = p;
-		p.schedule.push(s.si);
+		let p : Property = out[s.p.pid];
+		if (!p) {
+			p = { ...s.p, schedule: []};
+			out[s.p.pid] = p;
+		}
+		p.schedule?.push(s.si);
 	});
 	// Also add back properties that didn't get scheduled
-	base.filter(ps => ps.schedule.length === 0).forEach(ps => {
-		out[ps.p.pid] = {
-			p: ps.p,
-			message: ps.message,
+	scheduledProps.filter(p => p.schedule!.length === 0).forEach(p => {
+		out[p.pid] = {
+			...p,
+			scheduleMessage: p.scheduleMessage,
 			schedule: [],
 		};
 	});
@@ -99,23 +102,26 @@ export function buildSchedule(data: Property[], options: ScheduleOptions, prev: 
 	return Object.keys(out).map(k => out[k]);
 }
 
-function computeScheduleDates(data: Property[], options: ScheduleOptions, prev: PropertySchedule[] | undefined) : PropertySchedule[] {
+function computeScheduleDates(data: Property[], options: ScheduleOptions) : Property[] {
 	// build schedule starting tomorrow (no inspections today)
 	const tomorrow = moment().add(1, 'd').startOf('d');
 
-	let rv = data.map<PropertySchedule>(p => {
-		let ps : PropertySchedule = {
-			p,
-			schedule: []
+	let rv = data.map<Property>(p => {
+		let ps : Property = {
+			...p,
 		};
+		if (!ps.schedule) {
+			ps.schedule = [];
+		}
+
 		// Skip handling of empty units
 		if (!p.leaseStart && !p.leaseEnd) {
-			ps.message = 'Unoccupied';
+			p.scheduleMessage = 'Unoccupied';
 			return ps;
 		}
 
 		if (!p.leaseStart) {
-			ps.message = 'Missing lease start';
+			p.scheduleMessage = 'Missing lease start';
 			//console.log('Error in property ' + p.address + ', missing lease start');
 			return ps;
 		}
@@ -128,8 +134,9 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions, prev: 
 		const scheduleMax = moment(tomorrow).add(3, 'years');
 
 		if (!p.leaseEnd) {
+			//TODO: look for existing schedule items
 			for (let date = moment(scheduleStart); date.isBefore(scheduleMax); date.add(3, 'months')) {
-				ps.schedule.push({ d: moment(date) });
+				ps.schedule!.push({ d: moment(date) });
 			}
 
 			return ps;
@@ -142,29 +149,31 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions, prev: 
 		}
 
 		if (end.isBefore(tomorrow)) {
-			ps.message = 'Term ended';
+			ps.scheduleMessage = 'Term ended';
 			return ps;
 		}
 
 		if (scheduleEnd.isBefore(tomorrow)) {
-			ps.message = 'Term end is too soon';
+			ps.scheduleMessage = 'Term end is too soon';
 			//console.log('Error in property ' + p.address + ', term end is too soon to schedule dates');
 			return ps;
 		}
+
+		//TODO: look for existing schedule items
 		if (scheduleEnd.isBefore(scheduleStart)) {
 			// property term is narrower than the configured window, schedule asap
 			console.log('Property ' + p.pid + ' ' + p.address + ', has short term, need to schedule asap');
-			ps.schedule.push({ d: moment(tomorrow), isAsap: true });
+			ps.schedule!.push({ d: moment(tomorrow), isAsap: true });
 		}
 
 		// schedule the first one at start, then every 3 months (every quarter year)
 		for (let date = moment(scheduleStart); date.isBefore(scheduleEnd); date.add(3, 'months')) {
-			ps.schedule.push({ d: moment(date) });
+			ps.schedule!.push({ d: moment(date) });
 		}
 
 		// didn't schedule anything - go ahead and push one
-		if (ps.schedule.length == 0) {
-			ps.schedule.push({ d: moment(tomorrow) });
+		if (ps.schedule!.length == 0) {
+			ps.schedule!.push({ d: moment(tomorrow) });
 		}
 
 		return ps;

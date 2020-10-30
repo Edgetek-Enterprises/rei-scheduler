@@ -1,7 +1,7 @@
 import moment, { isMoment } from 'moment';
 // https://www.papaparse.com/
 import Papa from 'papaparse';
-import { Property, PropertySchedule, ScheduleItem } from './property';
+import { Property, ScheduleItem } from './property';
 import { DATE_FORMAT } from './App';
 
 /**
@@ -42,9 +42,12 @@ export function isCSV(f: File) : boolean {
 	return f.name.endsWith('.csv');
 }
 
-export function parseCsv(f: File, done: (result: Property[], schedule: PropertySchedule[] | undefined) => void, err: (msg: string) => void) : void {
+/**
+ * Parse a CSV of property instances, which may or may not include previous schedule and tenant information
+ */
+export function parseCsvProperties(f: File, done: (result: Property[]) => void, err: (msg: string) => void) : void {
 	let props : Property[] = [];
-	let scheds : PropertySchedule[] = [];
+	// let scheds : PropertySchedule[] = [];
 	let line = 0;
 	let hasSchedule = false;
 
@@ -53,6 +56,7 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
 		worker: false,
 		skipEmptyLines: true,
 
+		// Detects whether the row contains headers; parses date/numeric values; return 'undefined' to indicate failure
 		transform: (value, field) => {
 			if (value.length <= 0) {
 				const h = HEADER_FIELDS[field];
@@ -88,11 +92,10 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
 				return;
 			}
 
-			let prop : any = { pid: ''+line };
-			let sched : PropertySchedule = {
-				p: prop,
-				schedule: []
-			}
+			let prop : Property = {
+				pid: ''+line,
+				address: '',
+			};
 
 			//HACK: to fix bug in lib; if streaming with a header, this is an object and not an array
 			let rowObj : any | undefined;
@@ -108,11 +111,13 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
 			Object.keys(rowObj).forEach(key => {
 				const h = HEADER_FIELDS[key];
 				if (h) {
-					prop[h.name] = rowObj[key];
+					(prop as any)[h.name] = rowObj[key];
 				} else if (HEADER_INSPECTION_REGEX.test(key)) {
 						const d = rowObj[key] as moment.Moment;
 						if (d && d.isValid()) {
-							sched.schedule.push({
+							let ps = prop.schedule ?? [];
+							prop.schedule = ps;
+							prop.schedule.push({
 								d,
 								isImport: true
 							});
@@ -123,17 +128,14 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
 					return;
 				}
 			});
-			hasSchedule = hasSchedule || sched.schedule.length > 0;
 
 			// Sort inspections in case they are out of order in the input file
-			sched.schedule.sort((a,b) => a.d.unix() - b.d.unix());
-
-			props.push(prop as Property);
-			scheds.push(sched);
+			prop.schedule?.sort((a,b) => a.d.unix() - b.d.unix());
+			props.push(prop);
 		},
 		complete: () => {
 			console.log('Parsed ' + props.length + ' properties' + (hasSchedule ? ' and schedules' : ''));
-			done(props, hasSchedule ? scheds : undefined);
+			done(props);
 		}
 	};
 	Papa.parse(f, config);
@@ -142,15 +144,15 @@ export function parseCsv(f: File, done: (result: Property[], schedule: PropertyS
 /**
  * Generates CSV of inspection schedule, one property per row
  */
-export function toCSVInspections(data: PropertySchedule[]) : string {
+export function toCSVInspections(data: Property[]) : string {
 	const headers = Object.keys(HEADER_FIELDS);
 	let extras : string[] = [];
 
-	let out = data.map(ps => {
+	let out = data.map(p => {
 		let rv : any = {};
 		headers.forEach(h => {
 			const head = HEADER_FIELDS[h];
-			let v = (ps.p as any)[head.name];
+			let v = (p as any)[head.name];
 
 			switch (head?.type) {
 				case 'date': v = (v as moment.Moment)?.format(DATE_FORMAT); break;
@@ -159,7 +161,7 @@ export function toCSVInspections(data: PropertySchedule[]) : string {
 
 			rv[h] = v;
 		});
-		ps.schedule.forEach((s,i) => {
+		p.schedule?.forEach((s,i) => {
 			let t = HEADER_INSPECTION_PREFIX + (i+1);
 			rv[t] = s.d.format(DATE_FORMAT);
 			if (extras.length < (i + 1)) {
@@ -179,7 +181,7 @@ export function toCSVInspections(data: PropertySchedule[]) : string {
 /**
  * Generates CSV of inspection schedule, one inspection per row
  */
-export function toCSVSchedule(data: PropertySchedule[]) : string {
+export function toCSVSchedule(data: Property[]) : string {
 	interface Row {
 		p: Property;
 		date: moment.Moment;
@@ -187,10 +189,10 @@ export function toCSVSchedule(data: PropertySchedule[]) : string {
 	}
 	// First, transform the schedule into a sorted output
 	let schedule : Row[] = [];
-	data.forEach(ps => {
-		ps.schedule.forEach((s,i) => {
+	data.forEach(p => {
+		p.schedule?.forEach((s,i) => {
 			schedule.push({
-				p: ps.p,
+				p,
 				date: s.d,
 				number: i+1
 			});

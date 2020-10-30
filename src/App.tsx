@@ -2,22 +2,22 @@ import React from 'react';
 import moment from 'moment';
 import './App.css';
 import { useDropzone } from 'react-dropzone';
-import { Typography, makeStyles, Button, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, TablePagination, Theme } from '@material-ui/core';
+import { makeStyles, Button, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
 import CloudUploadIcon from '@material-ui/icons/CloudUpload';
-import { isCSV, parseCsv, toCSVInspections, toCSVSchedule } from './csvutil';
-import { Property, buildSchedule, PropertySchedule, ScheduleOptions } from './property';
+import { isCSV, parseCsvProperties, toCSVInspections, toCSVSchedule } from './csvutil';
+import { Property, buildSchedule, ScheduleOptions } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
 
 export const DATE_FORMAT = 'MM/DD/YYYY';
 
 const DropZone = (props: {
 	message: any;
-	handleData: (p: Property[], ps: PropertySchedule[] | undefined) => string | undefined
+	handleData: (p: Property[]) => string | undefined;
 }) => {
 	const [errMsg, setErrMsg] = React.useState<string | undefined>();
 	const [processing, setProcessing] = React.useState<boolean>(false);
 
-	const onDrop = React.useCallback((acceptedFiles: File[]) => {
+	const onDrop = (acceptedFiles: File[]) => {
 		if (acceptedFiles.length < 1) {
 			setErrMsg('Only single CSV file drop allowed');
 			return;
@@ -29,14 +29,14 @@ const DropZone = (props: {
 			return;
 		}
 		setProcessing(true);
-		parseCsv(f, (r, ps) => {
-				const msg = props.handleData(r, ps);
+		parseCsvProperties(f, (ps) => {
+				const msg = props.handleData(ps);
 				setProcessing(false);
 				if (msg) {
 					setErrMsg(msg);
 				}
 			}, setErrMsg);
-	}, [])
+	};
 	const onDragEnter = React.useCallback(() => {
 		if (errMsg) {
 			setErrMsg(undefined);
@@ -68,25 +68,18 @@ const DropZone = (props: {
 
 export default function App() {
 	const [propertyList, setPropertyList] = React.useState<Property[]>([]);
-	const [priorSchedule, setPriorSchedule] = React.useState<PropertySchedule[] | undefined>();
-	const [computedSchedule, setComputedSchedule] = React.useState<PropertySchedule[]>([]);
 	const columnData = getColumns();
-	const [sorted, setSorted] = React.useState<SortData<PropertySchedule>>({ col: columnData[0], dir: 'asc' });
+	const [sorted, setSorted] = React.useState<SortData<Property>>({ col: columnData[0], dir: 'asc' });
 	const [filterText, setFilterText] = React.useState<string>('');
 	const classes = STYLES();
 
-	React.useEffect(() => {
-		if (propertyList.length > 0) {
-			const pss = buildSchedule(propertyList, getOptions(), priorSchedule);
-			setComputedSchedule(pss);
-		}
-	}, [propertyList, priorSchedule]);
-
-	let items = computedSchedule;
+	let items = propertyList;
 	if (filterText) {
 		items = items.filter(i => filterItems(i, filterText!.toLowerCase()))
 	}
 	items = sortRows(items, sorted);
+
+	const hasSchedule = propertyList.find(p => p.schedule?.some(si => si.isImport)) !== undefined;
 
 	return <div className="App">
 			<header className="App-header">
@@ -102,8 +95,8 @@ export default function App() {
 			</div>
 			{ propertyList.length > 0 && <span style={{color: '#0f0' }}>{propertyList.length} properties available.</span>}
 			{ propertyList.length == 0 && <span style={{color: '#f00' }}>{propertyList.length} properties available.</span>}
-			{ priorSchedule && <span style={{color: '#0f0', marginLeft: '10px' }}>Previous schedule loaded.</span>}
-			{ !priorSchedule && <span style={{color: '#f00', marginLeft: '10px' }}>No previous schedule loaded.</span>}
+			{ hasSchedule && <span style={{color: '#0f0', marginLeft: '10px' }}>Previous schedule loaded.</span>}
+			{ !hasSchedule && <span style={{color: '#f00', marginLeft: '10px' }}>No previous schedule loaded.</span>}
 			<div className={classes.scrollContent}>
 				<input type="text"
 					placeholder='Filter'
@@ -136,12 +129,12 @@ export default function App() {
 							</TableRow>
 					</TableHead>
 					<TableBody className={classes.scrollContent}>
-							{ items.map((ps, idx) => {
-								return <TableRow key={ps.p.pid} >
-										{columnData.map((cd, idx) => <TableCell className={classes.tableCell} key={ps.p.pid + '.' + cd.id}
+							{ items.map((p, idx) => {
+								return <TableRow key={p.pid} >
+										{columnData.map((cd, idx) => <TableCell className={classes.tableCell} key={p.pid + '.' + cd.id}
 											scope="row">
 												<div className={classes.tableCellText}>
-													{cd.value(ps)}
+													{cd.value(p)}
 												</div>
 										</TableCell>)
 										}
@@ -152,21 +145,31 @@ export default function App() {
 		</div>
 	</div>;
 
-	function propertyListUpdated(p: Property[], ps: PropertySchedule[] | undefined) : string | undefined {
-		if (ps) {
-			return 'Invalid format for base properties list - must not include schedule columns'
-		}
+	/**
+	 * Provides parsed property details
+	 */
+	function propertyListUpdated(p: Property[]) : string | undefined {
 		setPropertyList(p);
 		return undefined;
 	}
 
-	function priorScheduleUpdated(p: Property[], ps: PropertySchedule[] | undefined) : string | undefined {
-		if (!ps) {
+	/**
+	 * Provides parsed property details including schedules
+	 */
+	function priorScheduleUpdated(plist: Property[]) : string | undefined {
+		if (propertyList.length == 0) {
+			return 'No base property list, upload one first';
+		}
+
+		if (!plist.find(p => p.schedule))
+		{
 			return 'Invalid format for previous schedule - expecting schedule columns'
 		}
-		setPriorSchedule(ps);
+
+		const pss = buildSchedule(propertyList, getOptions(), plist);
+		setPropertyList(pss);
 		return undefined;
-	}
+	};
 
 	function getOptions() : ScheduleOptions {
 		const blackoutDates : moment.Moment[] = [];
@@ -198,45 +201,48 @@ export default function App() {
 		};
 	}
 
-	function getColumns() : ColumnData<PropertySchedule>[] {
-		let cols: ColumnData<PropertySchedule>[] = [{
+	function getColumns() : ColumnData<Property>[] {
+		let cols: ColumnData<Property>[] = [{
 				id : 'address',
 				title : 'Address',
-				value: (dto) => dto.p.address,
+				value: (dto) => dto.address,
 			},{
 				id : 'city',
 				title : 'City',
-				value : (dto) => dto.p.city,
+				value : (dto) => dto.city,
 			}, {
 				id: 'state',
 				title: 'State',
-				value: (dto) => dto.p.state
+				value: (dto) => dto.state
 			}, {
 				id: 'zip',
 				title: 'Zip',
-				value: (dto) => dto.p.zip
+				value: (dto) => dto.zip
 			}, {
 				id: 'unit',
 				title: 'Unit',
-				value: (dto) => dto.p.unit
+				value: (dto) => dto.unit
 			}, {
 				id: 'leaseStart',
 				title: 'Lease Start',
-				value: (dto) => dto.p.leaseStart?.format(DATE_FORMAT)
+				value: (dto) => dto.leaseStart?.format(DATE_FORMAT)
 			}, {
 				id: 'leaseEnd',
 				title: 'Lease End',
-				value: (dto) => dto.p.leaseEnd?.format(DATE_FORMAT)
+				value: (dto) => dto.leaseEnd?.format(DATE_FORMAT)
 			}, {
 				id: 'moveOut',
 				title: 'Move-out',
-				value: (dto) => dto.p.moveOut?.format(DATE_FORMAT)
+				value: (dto) => dto.moveOut?.format(DATE_FORMAT)
 			}, {
 				id: 'schedule',
 				title: 'Schedule',
 				value: (dto) => {
-					if (dto.message) {
-						return dto.message;
+					if (dto.scheduleMessage) {
+						return dto.scheduleMessage;
+					}
+					if (!dto.schedule) {
+						return undefined;
 					}
 					return dto.schedule.map(m => m.d.format(DATE_FORMAT)).join(' ')
 				}
@@ -246,31 +252,31 @@ export default function App() {
 		return cols;
 	}
 
-	function filterItems(item: PropertySchedule, searchString: string) {
+	function filterItems(item: Property, searchString: string) {
 		return searchString.split(';').some(segment => {
 			 if (segment.trim().length == 0) return false;
 			 return segment.split(' ').every(text => {
 					if (text.trim().length == 0) return false;
 
-					if ((item.p.address??'').toLowerCase().indexOf(text) > -1) {
+					if ((item.address??'').toLowerCase().indexOf(text) > -1) {
 						 return true;
 					}
-					if ((item.p.city ?? '').toLowerCase().indexOf(text) > -1) {
+					if ((item.city ?? '').toLowerCase().indexOf(text) > -1) {
 						 return true;
 					}
-					if ((item.p.state ?? '').toLowerCase().indexOf(text) > -1) {
+					if ((item.state ?? '').toLowerCase().indexOf(text) > -1) {
 						 return true;
 					}
-					if ((item.p.unit ?? '').toLowerCase().indexOf(text) > -1) {
+					if ((item.unit ?? '').toLowerCase().indexOf(text) > -1) {
 						 return true;
 					}
-					if (((item.p.zip ?? '') + '').toLowerCase().indexOf(text) > -1) {
+					if (((item.zip ?? '') + '').toLowerCase().indexOf(text) > -1) {
 						 return true;
 					}
-					if ((item.p.leaseStart?.format(DATE_FORMAT) ?? '').toLowerCase().indexOf(text) > -1) {
+					if ((item.leaseStart?.format(DATE_FORMAT) ?? '').toLowerCase().indexOf(text) > -1) {
 						 return true;
 					}
-					if ((item.p.leaseEnd?.format(DATE_FORMAT) ?? '').toLowerCase().indexOf(text) > -1) {
+					if ((item.leaseEnd?.format(DATE_FORMAT) ?? '').toLowerCase().indexOf(text) > -1) {
 						 return true;
 					}
 
@@ -281,13 +287,13 @@ export default function App() {
 
 	function download() {
 		const doctag = document.createElement('a');
-		let data = toCSVInspections(computedSchedule);
+		let data = toCSVInspections(propertyList);
 		let file = new Blob([data], { type: 'text/csv' });
 		doctag.href = URL.createObjectURL(file);
 		doctag.download = 'rei-property-inspections.csv';
 		doctag.click();
 
-		data = toCSVSchedule(computedSchedule);
+		data = toCSVSchedule(propertyList);
 		file = new Blob([data], { type: 'text/csv' });
 		doctag.href = URL.createObjectURL(file);
 		doctag.download = 'rei-schedule.csv';
