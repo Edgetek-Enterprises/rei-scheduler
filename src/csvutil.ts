@@ -1,7 +1,7 @@
 import moment, { isMoment } from 'moment';
 // https://www.papaparse.com/
 import Papa from 'papaparse';
-import { Property, ScheduleItem } from './property';
+import { Property, ScheduleItem, TenantDetails } from './property';
 import { DATE_FORMAT } from './App';
 
 /**
@@ -18,6 +18,12 @@ const HEADER_FIELDS : {[header:string]:{name: string, type?: string, optional?:b
 	'Lease To':{ name: 'leaseEnd', type: 'date', optional: true},
 	'Move-out':{ name: 'moveOut', type: 'date', optional: true},
 }
+
+const TENANT_FIELDS : {[header:string]:{name: string, type?: string, optional?:boolean}} = {
+	'Tenant':{ name: 'name', optional: true},
+	'Phone Numbers':{ name: 'phone', optional: true},
+	'Emails':{ name: 'email', optional: true},
+};
 
 const HEADER_INSPECTION_REGEX = /Inspection \d+/;
 const HEADER_INSPECTION_PREFIX = 'Inspection ';
@@ -63,6 +69,9 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 				// not a Property field
 				if (!h) {
 					if (HEADER_INSPECTION_REGEX.test(String(field))) {
+						return undefined;
+					}
+					if (Object.keys(TENANT_FIELDS).find(k => k === field)) {
 						return undefined;
 					}
 					// Handle this in 'step' where we can abort parse
@@ -113,15 +122,30 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 				if (h) {
 					(prop as any)[h.name] = rowObj[key];
 				} else if (HEADER_INSPECTION_REGEX.test(key)) {
-						const d = rowObj[key] as moment.Moment;
-						if (d && d.isValid()) {
-							let ps = prop.schedule ?? [];
-							prop.schedule = ps;
-							prop.schedule.push({
-								d,
-								isImport: true
-							});
-						}
+					const d = rowObj[key] as moment.Moment;
+					if (d && d.isValid()) {
+						let ps = prop.schedule ?? [];
+						prop.schedule = ps;
+						prop.schedule.push({
+							d,
+							isImport: true
+						});
+					}
+				} else if (Object.keys(TENANT_FIELDS).find(k => k === key)) {
+					const h = TENANT_FIELDS[key];
+					if (!prop.tenants) {
+						prop.tenants = [];
+					}
+					let t : TenantDetails | undefined = prop.tenants.find(pt => pt.tid === ''+line);
+					if (!t) {
+						t = {
+							tid: ''+line,
+							name: '',
+						};
+						prop.tenants.push(t);
+					}
+
+					(t as any)[h.name] = rowObj[key];
 				} else {
 					err('Unhandled column in input file: ' + key);
 					parser.abort();
@@ -207,7 +231,7 @@ export function toCSVSchedule(data: Property[]) : string {
 	});
 
 	const headers = Object.keys(HEADER_FIELDS_SCHEDULE);
-	let extras : string[] = [];
+	const tenant = Object.keys(TENANT_FIELDS);
 
 	let out = schedule.map(r => {
 		let rv : any = {};
@@ -227,12 +251,18 @@ export function toCSVSchedule(data: Property[]) : string {
 
 			rv[h] = v;
 		});
+		tenant.forEach(h => {
+			const head = TENANT_FIELDS[h];
+			let v = r.p.tenants?.map((t,i) => '['+(i+1)+'] ' + (t as any)[head.name]).join(' ');
+
+			rv[h] = v;
+		});
 		return rv;
 	});
 
 	return Papa.unparse(out, {
 		skipEmptyLines: true,
-		columns: [...headers, ...extras],
+		columns: [...headers, ...tenant],
 		newline: '\n',
 	});
 }

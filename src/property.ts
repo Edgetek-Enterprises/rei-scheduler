@@ -13,7 +13,14 @@ export interface Property {
 
 	scheduleMessage?: string;
 	schedule?: ScheduleItem[];
-	tenant?: TenantDetails;
+	tenants?: TenantDetails[];
+}
+
+export interface TenantDetails {
+	tid: string;
+	name: string;
+	phone?: string;
+	email?: string;
 }
 
 export interface ScheduleItem {
@@ -255,6 +262,42 @@ function applyScheduleConstraints(schedule: ScheduleEntry[], options: ScheduleOp
 		++curr;
 		start = curr;
 	}
+
+	return rv;
+}
+
+/**
+ * Merge tenant details into the base property list.
+ * Throw a string on error
+ */
+export function mergeTenants(base: Property[], tenants: Property[]) : Property[] {
+	let rv = [...base];
+	// Flush existing tenant lists
+	base.forEach(p => p.tenants = undefined);
+
+	tenants.filter(tp => tp.tenants).forEach(tp => {
+		const blank = tp.tenants!.some(t => !t.name || t.name.length == 0);
+		if (blank) {
+			//throw 'Missing tenant name: ' + tp.address;
+			console.log('Skipping tenant property with missing name for address ' + tp.address);
+			return;
+		}
+
+		// Find the property matching the tenant entry
+		let prop = base.find(p =>
+			p.address === tp.address &&
+			p.city === tp.city &&
+			p.state === tp.state &&
+			p.zip === tp.zip &&
+			(p.unit ? p.unit === tp.unit : true) // if base prop has no unit, ignore the comparison
+		);
+		if (prop) {
+			if (!prop.tenants) {
+				prop.tenants = [];
+			}
+			tp.tenants?.forEach(t => prop!.tenants!.push(t));
+		}
+	});
 
 	return rv;
 }

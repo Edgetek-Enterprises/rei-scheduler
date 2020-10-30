@@ -5,7 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import { makeStyles, Button, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
 import CloudUploadIcon from '@material-ui/icons/CloudUpload';
 import { isCSV, parseCsvProperties, toCSVInspections, toCSVSchedule } from './csvutil';
-import { Property, buildSchedule, ScheduleOptions } from './property';
+import { Property, buildSchedule, ScheduleOptions, mergeTenants } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
 
 export const DATE_FORMAT = 'MM/DD/YYYY';
@@ -90,6 +90,8 @@ export default function App() {
 			<div className='dropzones'>
 				<DropZone message={<>Drop the <strong>base properties list</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
 					handleData={propertyListUpdated} />
+				<DropZone message={<>Drop the <strong>properties list with tenant details</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+					handleData={propertyListTenantsUpdated} />
 				<DropZone message={<>Drop the <strong>previous schedule</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
 					handleData={priorScheduleUpdated} />
 			</div>
@@ -148,8 +150,34 @@ export default function App() {
 	/**
 	 * Provides parsed property details
 	 */
-	function propertyListUpdated(p: Property[]) : string | undefined {
-		setPropertyList(p);
+	function propertyListUpdated(plist: Property[]) : string | undefined {
+		if (plist.find(p => p.tenants)) {
+			return 'Invalid format for base property list - expecting no tenant columns'
+		}
+		setPropertyList(plist);
+		return undefined;
+	}
+
+	/**
+	 *
+	 */
+	function propertyListTenantsUpdated(plist: Property[]) : string | undefined {
+		if (propertyList.length == 0) {
+			return 'No base property list, upload one first';
+		}
+		if (!plist.find(p => p.tenants)) {
+			return 'Invalid format for property list with tenants - expecting tenant columns'
+		}
+		if (plist.find(p => p.schedule)) {
+			return 'Invalid format for previous schedule - expecting no schedule columns'
+		}
+
+		try {
+			const pss = mergeTenants(propertyList, plist);
+			setPropertyList(pss);
+		} catch (msg) {
+			return msg as string;
+		}
 		return undefined;
 	}
 
@@ -160,9 +188,11 @@ export default function App() {
 		if (propertyList.length == 0) {
 			return 'No base property list, upload one first';
 		}
+		if (plist.find(p => p.tenants)) {
+			return 'Invalid format for base property list - expecting no tenant columns'
+		}
 
-		if (!plist.find(p => p.schedule))
-		{
+		if (!plist.find(p => p.schedule)) {
 			return 'Invalid format for previous schedule - expecting schedule columns'
 		}
 
@@ -234,6 +264,10 @@ export default function App() {
 				id: 'moveOut',
 				title: 'Move-out',
 				value: (dto) => dto.moveOut?.format(DATE_FORMAT)
+			}, {
+				id: 'tenants',
+				title: 'Tenants',
+				value: (dto) => dto.tenants?.map(t => t.name + ' ' + t.phone + ' ' + t.email).join('; ')
 			}, {
 				id: 'schedule',
 				title: 'Schedule',
