@@ -24,6 +24,13 @@ export interface TenantDetails {
 	email?: string;
 }
 
+export function pstring(p: Property) : string {
+	if (!p.unit) {
+		return p.address;
+	}
+	return p.address + ' ' + p.unit;
+}
+
 /**
  * Merge tenant details into the base property list.
  * Throw a string on error
@@ -85,7 +92,7 @@ export function mergeSchedules(base: Property[], prev: Property[]) : Property[] 
 				console.log('Lease dates changed for ' + pstring(p) + ', generating new schedule');
 			}
 		} else {
-			console.log('Lease dates imported for ' + pstring(p) + ', retaining old schedule');
+			console.log('Lease dates imported for ' + pstring(p));
 		}
 	});
 

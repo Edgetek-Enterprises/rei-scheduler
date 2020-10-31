@@ -4,7 +4,7 @@ import './App.css';
 import { makeStyles, Button, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
 import { KeyboardDatePicker, MuiPickersUtilsProvider } from "@material-ui/pickers";
 import { toCSVInspections, toCSVSchedule } from './csvutil';
-import { Property, mergeTenants } from './property';
+import { Property, mergeTenants, mergeSchedules, pstring } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
 import { DropZone } from './components/DropZone';
 import MomentUtils from '@date-io/moment';
@@ -92,12 +92,15 @@ export default function App() {
 					<TableBody className={classes.scrollContent}>
 							{ items.map((p, idx) => {
 								return <TableRow key={p.pid} >
-										{columnData.map((cd, idx) => <TableCell className={classes.tableCell} key={p.pid + '.' + cd.id}
-											scope="row">
+										{columnData.map((cd, idx) => <TableCell
+												className={classes.tableCell}
+												key={p.pid + '.' + cd.id}
+												scope="row"
+											>
 												<div className={classes.tableCellText}>
 													{cd.value(p)}
 												</div>
-										</TableCell>)
+											</TableCell>)
 										}
 								</TableRow>;})
 							}
@@ -113,6 +116,11 @@ export default function App() {
 		if (plist.find(p => p.tenants)) {
 			return 'Invalid format for base property list - expecting no tenant columns'
 		}
+		plist.forEach(p => {
+			if (p.schedule && p.schedule.length > 0) {
+				console.log('Lease dates imported for ' + pstring(p));
+			}
+		})
 		const pss = buildSchedule(plist, getOptions());
 		setPropertyList(pss);
 		return undefined;
@@ -157,7 +165,8 @@ export default function App() {
 			return 'Invalid format for previous schedule - expecting schedule columns'
 		}
 
-		const pss = buildSchedule(propertyList, getOptions());
+		let pss = mergeSchedules(propertyList, plist);
+		pss = buildSchedule(pss, getOptions());
 		setPropertyList(pss);
 		return undefined;
 	};
@@ -289,6 +298,21 @@ export default function App() {
 					}
 					if ((item.leaseEnd?.format(DATE_FORMAT) ?? '').toLowerCase().indexOf(text) > -1) {
 						 return true;
+					}
+					if (item.schedule && item.schedule.map(si => {
+							const fd = si.d.format(DATE_FORMAT);
+							let prefix = '';
+
+							if (si.isImport) {
+								prefix = 'Hist:';
+							}
+							if (si.isMoveOut) {
+								prefix = 'MoveOut:';
+							}
+							return prefix + fd + '   ';
+						}).join(' ').toLowerCase().includes(text)
+					) {
+						return true;
 					}
 
 					return false;

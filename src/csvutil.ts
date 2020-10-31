@@ -121,6 +121,13 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 			Object.keys(rowObj).forEach(key => {
 				const h = HEADER_FIELDS[key];
 				if (h) {
+					if (h.type == 'number') {
+						if (isNaN(rowObj[key])) {
+							err('Invalid data \'' + rowObj[key] + '\' for column \'' + key + '\' in row ' + (line+1));
+							parser.abort();
+							return;
+						}
+					}
 					(prop as any)[h.name] = rowObj[key];
 				} else if (HEADER_INSPECTION_REGEX.test(key)) {
 					const d = rowObj[key] as moment.Moment;
