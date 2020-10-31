@@ -30,6 +30,7 @@ export interface ScheduleItem {
 }
 
 export interface ScheduleOptions {
+	scheduleStart: moment.Moment;
 	scheduleMax: moment.Moment;
 	maxPerDay: number;
 	maxPerWeek: number;
@@ -111,7 +112,6 @@ export function buildSchedule(data: Property[], options: ScheduleOptions, prev: 
 
 function computeScheduleDates(data: Property[], options: ScheduleOptions) : Property[] {
 	// build schedule starting tomorrow (no inspections today)
-	const tomorrow = moment().add(1, 'd').startOf('d');
 
 	let rv = data.map<Property>(p => {
 		let ps : Property = {
@@ -135,10 +135,10 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 
 		const start = p.leaseStart!;
 		let scheduleStart = moment(start).add(3, 'months');
-		if (scheduleStart.isBefore(tomorrow)) {
-			scheduleStart = tomorrow;
+		if (scheduleStart.isBefore(options.scheduleStart)) {
+			scheduleStart = options.scheduleStart;
 		}
-		const scheduleMax = moment(tomorrow).add(3, 'years');
+		const scheduleMax = moment(options.scheduleStart).add(3, 'years');
 
 		if (!p.leaseEnd) {
 			//TODO: look for existing schedule items
@@ -155,12 +155,12 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 			scheduleEnd = scheduleMax;
 		}
 
-		if (end.isBefore(tomorrow)) {
+		if (end.isBefore(options.scheduleStart)) {
 			ps.scheduleMessage = 'Term ended';
 			return ps;
 		}
 
-		if (scheduleEnd.isBefore(tomorrow)) {
+		if (scheduleEnd.isBefore(options.scheduleStart)) {
 			ps.scheduleMessage = 'Term end is too soon';
 			//console.log('Error in property ' + p.address + ', term end is too soon to schedule dates');
 			return ps;
@@ -170,7 +170,7 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 		if (scheduleEnd.isBefore(scheduleStart)) {
 			// property term is narrower than the configured window, schedule asap
 			console.log('Property ' + p.pid + ' ' + p.address + ', has short term, need to schedule asap');
-			ps.schedule!.push({ d: moment(tomorrow), isAsap: true });
+			ps.schedule!.push({ d: moment(options.scheduleStart), isAsap: true });
 		}
 
 		// schedule the first one at start, then every 3 months (every quarter year)
@@ -180,7 +180,7 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 
 		// didn't schedule anything - go ahead and push one
 		if (ps.schedule!.length == 0) {
-			ps.schedule!.push({ d: moment(tomorrow) });
+			ps.schedule!.push({ d: moment(options.scheduleStart) });
 		}
 
 		return ps;

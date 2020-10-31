@@ -1,73 +1,21 @@
 import React from 'react';
 import moment from 'moment';
 import './App.css';
-import { useDropzone } from 'react-dropzone';
 import { makeStyles, Button, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
-import CloudUploadIcon from '@material-ui/icons/CloudUpload';
-import { isCSV, parseCsvProperties, toCSVInspections, toCSVSchedule } from './csvutil';
+import { KeyboardDatePicker, MuiPickersUtilsProvider } from "@material-ui/pickers";
+import { toCSVInspections, toCSVSchedule } from './csvutil';
 import { Property, buildSchedule, ScheduleOptions, mergeTenants } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
+import { DropZone } from './components/DropZone';
+import MomentUtils from '@date-io/moment';
 
 export const DATE_FORMAT = 'MM/DD/YYYY';
 
-const DropZone = (props: {
-	message: any;
-	handleData: (p: Property[]) => string | undefined;
-}) => {
-	const [errMsg, setErrMsg] = React.useState<string | undefined>();
-	const [processing, setProcessing] = React.useState<boolean>(false);
-
-	const onDrop = (acceptedFiles: File[]) => {
-		if (acceptedFiles.length < 1) {
-			setErrMsg('Only single CSV file drop allowed');
-			return;
-		}
-		const f = acceptedFiles[0];
-		const iscsv = isCSV(f);
-		if (!iscsv) {
-			setErrMsg('File is not CSV');
-			return;
-		}
-		setProcessing(true);
-		parseCsvProperties(f, (ps) => {
-				const msg = props.handleData(ps);
-				setProcessing(false);
-				if (msg) {
-					setErrMsg(msg);
-				}
-			}, setErrMsg);
-	};
-	const onDragEnter = React.useCallback(() => {
-		if (errMsg) {
-			setErrMsg(undefined);
-		}
-	}, [errMsg]);
-	const {getRootProps, getInputProps, isDragActive} = useDropzone({
-		onDrop,
-		onDragEnter,
-		multiple: false
-	})
-
-	let divCls = 'dropZone MuiTypography-root MuiTypography-h5 dropzoneTextStyle';
-	if (isDragActive) {
-		divCls += ' stripes';
-	} else if (errMsg) {
-		divCls += ' rejectStripes';
-	} else if (processing) {
-		divCls += ' processingStripes';
-	}
-	return (
-		<div className={divCls} {...getRootProps()}>
-			<input {...getInputProps()} />
-			<div>{props.message}</div>
-			{errMsg && <div>{errMsg}</div>}
-			<CloudUploadIcon style={{width: '51', height: '51', color: '#909090' }} />
-		</div>
-	)
-}
-
 export default function App() {
+	const tomorrow = moment().add(1, 'd').startOf('d');
 	const [propertyList, setPropertyList] = React.useState<Property[]>([]);
+	const [startDate, setStartDate] = React.useState<moment.Moment>(tomorrow);
+
 	const columnData = getColumns();
 	const [sorted, setSorted] = React.useState<SortData<Property>>({ col: columnData[0], dir: 'asc' });
 	const [filterText, setFilterText] = React.useState<string>('');
@@ -78,7 +26,6 @@ export default function App() {
 		items = items.filter(i => filterItems(i, filterText!.toLowerCase()))
 	}
 	items = sortRows(items, sorted);
-
 	const hasSchedule = propertyList.find(p => p.schedule?.some(si => si.isImport)) !== undefined;
 
 	return <div className="App">
@@ -109,6 +56,17 @@ export default function App() {
 					className={classes.button}
 					onClick={(evt: any) => download()}
 				>Download Schedule CSV</Button>
+
+				Schedule Start Date:
+				<MuiPickersUtilsProvider utils={MomentUtils}>
+					<KeyboardDatePicker
+						value={startDate}
+						placeholder={startDate.format(DATE_FORMAT)}
+						onChange={(date) => setStartDate((date as moment.Moment) ?? moment())}
+						format={DATE_FORMAT}
+						rifmFormatter={(str) => str}
+						/>
+				</MuiPickersUtilsProvider>
 				<Table
 					aria-labelledby="tableTitle"
 					className={classes.table}
@@ -154,7 +112,8 @@ export default function App() {
 		if (plist.find(p => p.tenants)) {
 			return 'Invalid format for base property list - expecting no tenant columns'
 		}
-		setPropertyList(plist);
+		const pss = buildSchedule(plist, getOptions(), undefined);
+		setPropertyList(pss);
 		return undefined;
 	}
 
@@ -173,7 +132,8 @@ export default function App() {
 		}
 
 		try {
-			const pss = mergeTenants(propertyList, plist);
+			let pss = mergeTenants(propertyList, plist);
+			pss = buildSchedule(pss, getOptions(), undefined);
 			setPropertyList(pss);
 		} catch (msg) {
 			return msg as string;
@@ -205,7 +165,8 @@ export default function App() {
 		const blackoutDates : moment.Moment[] = [];
 
 		return {
-			scheduleMax: moment().add(3, 'years'),
+			scheduleStart: startDate,
+			scheduleMax: moment(startDate).add(3, 'years'),
 			maxPerDay: 5,
 			maxPerWeek: 7,
 			pushBlackout: (d) => {
