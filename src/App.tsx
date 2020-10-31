@@ -4,10 +4,11 @@ import './App.css';
 import { makeStyles, Button, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
 import { KeyboardDatePicker, MuiPickersUtilsProvider } from "@material-ui/pickers";
 import { toCSVInspections, toCSVSchedule } from './csvutil';
-import { Property, buildSchedule, ScheduleOptions, mergeTenants } from './property';
+import { Property, mergeTenants } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
 import { DropZone } from './components/DropZone';
 import MomentUtils from '@date-io/moment';
+import { buildSchedule, ScheduleOptions } from './scheduler';
 
 export const DATE_FORMAT = 'MM/DD/YYYY';
 
@@ -112,7 +113,7 @@ export default function App() {
 		if (plist.find(p => p.tenants)) {
 			return 'Invalid format for base property list - expecting no tenant columns'
 		}
-		const pss = buildSchedule(plist, getOptions(), undefined);
+		const pss = buildSchedule(plist, getOptions());
 		setPropertyList(pss);
 		return undefined;
 	}
@@ -133,7 +134,7 @@ export default function App() {
 
 		try {
 			let pss = mergeTenants(propertyList, plist);
-			pss = buildSchedule(pss, getOptions(), undefined);
+			pss = buildSchedule(pss, getOptions());
 			setPropertyList(pss);
 		} catch (msg) {
 			return msg as string;
@@ -156,7 +157,7 @@ export default function App() {
 			return 'Invalid format for previous schedule - expecting schedule columns'
 		}
 
-		const pss = buildSchedule(propertyList, getOptions(), plist);
+		const pss = buildSchedule(propertyList, getOptions());
 		setPropertyList(pss);
 		return undefined;
 	};

@@ -1,7 +1,7 @@
 import moment, { isMoment } from 'moment';
 // https://www.papaparse.com/
 import Papa from 'papaparse';
-import { Property, ScheduleItem, TenantDetails } from './property';
+import { Property, TenantDetails } from './property';
 import { DATE_FORMAT } from './App';
 
 /**
