@@ -42,6 +42,7 @@ const HEADER_FIELDS_SCHEDULE : {[header:string]:{name: string, type?: string, sc
 	'Lease From':{ name: 'leaseStart', type: 'date' },
 	'Lease To':{ name: 'leaseEnd', type: 'date' },
 	'Move-out':{ name: 'moveOut', type: 'date' },
+	'Inspection Type': { name: 'type', sched: true },
 }
 
 export function isCSV(f: File) : boolean {
@@ -210,6 +211,7 @@ export function toCSVSchedule(data: Property[]) : string {
 		p: Property;
 		date: moment.Moment;
 		number: number;
+		type: string;
 	}
 	// First, transform the schedule into a sorted output
 	let schedule : Row[] = [];
@@ -218,7 +220,8 @@ export function toCSVSchedule(data: Property[]) : string {
 			schedule.push({
 				p,
 				date: s.d,
-				number: i+1
+				number: i+1,
+				type: s.isMoveOut ? 'Move-out' : 'Quarterly',
 			});
 		});
 	});

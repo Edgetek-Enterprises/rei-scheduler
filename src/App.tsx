@@ -65,7 +65,7 @@ export default function App() {
 						onChange={(date) => setStartDate((date as moment.Moment) ?? moment())}
 						format={DATE_FORMAT}
 						rifmFormatter={(str) => str}
-						/>
+					/>
 				</MuiPickersUtilsProvider>
 				<Table
 					aria-labelledby="tableTitle"
@@ -167,6 +167,9 @@ export default function App() {
 		return {
 			scheduleStart: startDate,
 			scheduleMax: moment(startDate).add(3, 'years'),
+			moveInBuffer: (d) => moment(d).add(3, 'months'),
+			// No move-out buffer
+			moveOutBuffer: (d) => d,//moment(d).add(-3, 'months'),
 			maxPerDay: 5,
 			maxPerWeek: 7,
 			pushBlackout: (d) => {
@@ -233,13 +236,25 @@ export default function App() {
 				id: 'schedule',
 				title: 'Schedule',
 				value: (dto) => {
-					if (dto.scheduleMessage) {
-						return dto.scheduleMessage;
-					}
-					if (!dto.schedule) {
-						return undefined;
-					}
-					return dto.schedule.map(m => m.d.format(DATE_FORMAT)).join(' ')
+					// if (!dto.schedule || dto.schedule.length == 0) {
+					// 	if (dto.scheduleMessage) {
+					// 		return dto.scheduleMessage;
+					// 	}
+					// 	return <></>;
+					// }
+					return <>{dto.scheduleMessage} {(dto.schedule ?? []).map(m => {
+						const fd = m.d.format(DATE_FORMAT);
+						let prefix = '';
+
+						//FIXME: can't get this styling to work right - the bold ones overlap with the others
+						if (m.isImport) {
+							prefix = 'Hist:';
+						}
+						if (m.isMoveOut) {
+							prefix = 'MoveOut:';
+						}
+						return prefix + fd + '   ';
+					})}</>;
 				}
 			}
 		];
