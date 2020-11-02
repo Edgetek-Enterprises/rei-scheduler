@@ -27,9 +27,13 @@ export const DropZone = (props: {
 				const msg = props.handleData(ps);
 				setProcessing(false);
 				if (msg) {
+					console.log('Failed parsing: ' + msg);
 					setErrMsg(msg);
 				}
-			}, setErrMsg);
+			}, (err) => {
+				console.log('Failed parsing: ' + err);
+				setErrMsg(err);
+			});
 	};
 	const onDragEnter = React.useCallback(() => {
 		if (errMsg) {

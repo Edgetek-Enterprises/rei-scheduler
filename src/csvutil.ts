@@ -58,6 +58,8 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 	let line = 0;
 	let hasSchedule = false;
 
+	const NODATA = '<no data>';
+
 	const config: Papa.ParseConfig = {
 		header: true,
 		worker: false,
@@ -82,7 +84,7 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 				if (h.optional) {
 					return undefined;
 				}
-				return '<no data>';
+				return NODATA;
 			}
 			switch (HEADER_FIELDS[field]?.type) {
 				case 'date': return moment(value, DATE_FORMAT);
@@ -115,6 +117,12 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 			if (!rowObj) {
 				err('Internal error; failed to parse CSV row with headers');
 				parser.abort();
+				return;
+			}
+
+			const empty = Object.keys(rowObj).every(key => !rowObj[key] || rowObj[key] === NODATA);
+			if (empty) {
+				console.log('Skipping empty line ' + (line+1));
 				return;
 			}
 

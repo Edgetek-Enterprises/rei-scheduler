@@ -28,6 +28,7 @@ export default function App() {
 	}
 	items = sortRows(items, sorted);
 	const hasSchedule = propertyList.find(p => p.schedule?.some(si => si.isImport)) !== undefined;
+	const hasTenants = propertyList.find(p => p.tenants?.some(ti => !!ti)) !== undefined;
 
 	return <div className="App">
 			<header className="App-header">
@@ -45,6 +46,8 @@ export default function App() {
 			</div>
 			{ propertyList.length > 0 && <span style={{color: '#0f0' }}>{propertyList.length} properties available.</span>}
 			{ propertyList.length == 0 && <span style={{color: '#f00' }}>{propertyList.length} properties available.</span>}
+			{ hasTenants && <span style={{color: '#0f0', marginLeft: '10px' }}>Tenant data loaded.</span>}
+			{ !hasTenants && <span style={{color: '#f00', marginLeft: '10px' }}>No tenant data loaded.</span>}
 			{ hasSchedule && <span style={{color: '#0f0', marginLeft: '10px' }}>Previous schedule loaded.</span>}
 			{ !hasSchedule && <span style={{color: '#f00', marginLeft: '10px' }}>No previous schedule loaded.</span>}
 			<div className={classes.scrollContent}>

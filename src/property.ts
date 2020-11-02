@@ -68,7 +68,7 @@ export function mergeTenants(base: Property[], tenants: Property[]) : Property[]
 }
 
 /**
- * Merge tenant details into the base property list.
+ * Merge schedule details into the base property list.
  * Throw a string on error
  */
 export function mergeSchedules(base: Property[], prev: Property[]) : Property[] {
@@ -86,7 +86,7 @@ export function mergeSchedules(base: Property[], prev: Property[]) : Property[] 
 		p.schedule = prop?.schedule ?? [];
 
 		// if lease dates changed, flush schedule
-		if (prop?.leaseStart !== p.leaseStart || prop?.leaseEnd !== p.leaseEnd) {
+		if (prop?.leaseStart?.unix() != p.leaseStart?.unix() || prop?.leaseEnd?.unix() != p.leaseEnd?.unix()) {
 			p.schedule = [];
 			if (prop) {
 				console.log('Lease dates changed for ' + pstring(p) + ', generating new schedule');
