@@ -19,6 +19,10 @@ const HEADER_FIELDS : {[header:string]:{name: string, type?: string, optional?:b
 	'Move-out':{ name: 'moveOut', type: 'date', optional: true},
 }
 
+//NOTE: same value as in HEADER_FIELDS above
+const HEADER_FIRST_COLUMN = 'Property Street Address 1';
+const FIRST_COLUMN_TOTAL_VALUE = 'Total';
+
 const TENANT_FIELDS : {[header:string]:{name: string, type?: string, optional?:boolean}} = {
 	'Tenant':{ name: 'name', optional: true},
 	'Phone Numbers':{ name: 'phone', optional: true},
@@ -54,7 +58,6 @@ export function isCSV(f: File) : boolean {
  */
 export function parseCsvProperties(f: File, done: (result: Property[]) => void, err: (msg: string) => void) : void {
 	let props : Property[] = [];
-	// let scheds : PropertySchedule[] = [];
 	let line = 0;
 	let hasSchedule = false;
 
@@ -63,7 +66,7 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 	const config: Papa.ParseConfig = {
 		header: true,
 		worker: false,
-		skipEmptyLines: true,
+		skipEmptyLines: false,
 
 		// Detects whether the row contains headers; parses date/numeric values; return 'undefined' to indicate failure
 		transform: (value, field) => {
@@ -84,6 +87,9 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 				if (h.optional) {
 					return undefined;
 				}
+				if (field === HEADER_FIRST_COLUMN) {
+					return undefined;
+				}
 				return NODATA;
 			}
 			switch (HEADER_FIELDS[field]?.type) {
@@ -98,8 +104,14 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 		step: (results, parser) => {
 			line++;
 			if (results.errors.length > 0) {
-				// add 2 assuming a header row is zero
-				err(results.errors.map(pe => 'Line ' + (pe.row+2) + ': ' + pe.message).join());
+				if (results.errors.length == 1) {
+					if (results.errors[0].code === 'TooFewFields') {
+						console.log('Skipping empty line ' + (line+1));
+						return;
+					}
+				}
+				// add 1 assuming a header row is uncounted and the first row is zero
+				err(results.errors.map(pe => 'Line ' + (pe.row+1) + ': ' + pe.message).join());
 				parser.abort();
 				return;
 			}
@@ -120,9 +132,14 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 				return;
 			}
 
-			const empty = Object.keys(rowObj).every(key => !rowObj[key] || rowObj[key] === NODATA);
+			const empty = Object.keys(rowObj).every(key => !rowObj[key] || String(rowObj[key]).trim().length == 0 || rowObj[key] === NODATA);
 			if (empty) {
 				console.log('Skipping empty line ' + (line+1));
+				return;
+			}
+			const totalRow = rowObj[HEADER_FIRST_COLUMN] === FIRST_COLUMN_TOTAL_VALUE;
+			if (totalRow) {
+				console.log('Skipping \'' + FIRST_COLUMN_TOTAL_VALUE +'\' row ' + (line+1));
 				return;
 			}
 
@@ -173,7 +190,7 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 			prop.schedule?.sort((a,b) => a.d.unix() - b.d.unix());
 			props.push(prop);
 		},
-		complete: () => {
+		complete: (results) => {
 			console.log('Parsed ' + props.length + ' properties' + (hasSchedule ? ' and schedules' : ''));
 			done(props);
 		}
