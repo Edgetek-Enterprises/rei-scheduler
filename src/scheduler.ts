@@ -1,6 +1,6 @@
 import moment from "moment";
 import { DATE_FORMAT } from "./App";
-import { Property, pstring } from "./property";
+import { Property, pstring, selist } from "./property";
 
 export interface ScheduleItem {
 	d: moment.Moment;
@@ -19,7 +19,7 @@ export interface ScheduleOptions {
 	pushBlackout: (d: moment.Moment) => moment.Moment;
 }
 
-interface ScheduleEntry {
+export interface ScheduleEntry {
 	p: Property;
 	si: ScheduleItem;
 }
@@ -79,8 +79,10 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 			ps.schedule = [];
 		}
 
+		let pLeaseEndMoveOut = p.moveOut ?? p.leaseEnd;
+
 		// Skip handling of empty units
-		if (!p.leaseStart && !p.leaseEnd) {
+		if (!p.leaseStart && !pLeaseEndMoveOut) {
 			p.scheduleMessage = 'Unoccupied';
 			console.log(pstring(p) + ' missing lease start and lease end: Unoccupied');
 			return ps;
@@ -101,7 +103,7 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 		console.log(pstring(ps) + ' lease start is ' + ps.leaseStart!.format(DATE_FORMAT) + ' starting schedule after buffer at ' + scheduleStart.format(DATE_FORMAT));
 
 		// If no lease end date, schedule up to the max schedule date without a move-out inspection
-		if (!p.leaseEnd) {
+		if (!pLeaseEndMoveOut) {
 			// no existing schedule, just add dates
 			if (ps.schedule.length == 0) {
 				console.log('No existing schedule for ' + pstring(ps) + ', adding dates every 3 months');
@@ -131,26 +133,26 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 			return ps;
 		}
 
-		const hasMoveOut = ps.schedule.find(si => si.isMoveOut);
+		const scheduledMoveOut = ps.schedule.find(si => si.isMoveOut);
 
 		// Schedule at next available date for move-out
-		if (p.leaseEnd!.isBefore(options.scheduleStart)) {
+		if (pLeaseEndMoveOut!.isBefore(options.scheduleStart)) {
 			ps.scheduleMessage = 'Term ended';
-			if (!hasMoveOut) {
+			if (!scheduledMoveOut) {
 				const dd = moment(options.scheduleStart).add(1, 'day');
-				console.log(pstring(ps) + ' term ended ' + p.leaseEnd.format(DATE_FORMAT) + '; scheduling move-out at ' + dd.format(DATE_FORMAT));
+				console.log(pstring(ps) + ' term ended ' + pLeaseEndMoveOut.format(DATE_FORMAT) + '; scheduling move-out at ' + dd.format(DATE_FORMAT));
 				ps.schedule!.push({
 					d: dd,
 					isMoveOut: true
 				});
 			} else {
-				console.log(pstring(ps) + ' term ended' + p.leaseEnd.format(DATE_FORMAT) + '; move-out already scheduled at ' + hasMoveOut.d.format(DATE_FORMAT));
+				console.log(pstring(ps) + ' term ended' + pLeaseEndMoveOut.format(DATE_FORMAT) + '; move-out already scheduled at ' + scheduledMoveOut.d.format(DATE_FORMAT));
 			}
 
 			return ps;
 		}
 
-		let scheduleEnd = options.moveOutBuffer(p.leaseEnd!);
+		let scheduleEnd = options.moveOutBuffer(pLeaseEndMoveOut!);
 		if (scheduleEnd.isAfter(options.scheduleMax)) {
 			scheduleEnd = options.scheduleMax;
 		}
@@ -158,15 +160,15 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 		// Schedule at next available date for move-out
 		if (scheduleEnd.isBefore(options.scheduleStart)) {
 			ps.scheduleMessage = 'Term end is too soon';
-			if (!hasMoveOut) {
-				const dd = moment(p.leaseEnd!).add(1, 'day');
+			if (!scheduledMoveOut) {
+				const dd = moment(pLeaseEndMoveOut!).add(1, 'day');
 				console.log(pstring(ps) + ' term end is too soon ' + scheduleEnd.format(DATE_FORMAT) + '; scheduling move-out at ' + dd.format(DATE_FORMAT));
 				ps.schedule!.push({
 					d: dd,
 					isMoveOut: true
 				});
 			} else {
-				console.log(pstring(ps) + ' term end is too soon' + scheduleEnd.format(DATE_FORMAT) + '; move-out already scheduled at ' + hasMoveOut.d.format(DATE_FORMAT));
+				console.log(pstring(ps) + ' term end is too soon' + scheduleEnd.format(DATE_FORMAT) + '; move-out already scheduled at ' + scheduledMoveOut.d.format(DATE_FORMAT));
 			}
 
 			return ps;
@@ -180,8 +182,8 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 				ps.schedule!.push({ d: moment(options.scheduleStart), isAsap: true });
 			}
 			// Also schedule a move-out date
-			if (!hasMoveOut) {
-				const dd = moment(p.leaseEnd!).add(1, 'day');
+			if (!scheduledMoveOut) {
+				const dd = moment(pLeaseEndMoveOut!).add(1, 'day');
 				console.log(pstring(ps) + ' term is shorter than buffer ' + scheduleEnd.format(DATE_FORMAT) + '; scheduling move-out at ' + dd.format(DATE_FORMAT));
 				ps.schedule!.push({
 					d: dd,
@@ -227,14 +229,14 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 			console.log(pstring(ps) + ' scheduled single entry at ' + options.scheduleStart.format(DATE_FORMAT));
 		}
 
-		if (!hasMoveOut) {
-			const dd = moment(p.leaseEnd!).add(1, 'day');
+		if (!scheduledMoveOut) {
+			const dd = moment(pLeaseEndMoveOut!).add(1, 'day');
 			// Also schedule a move-out inspection
 			ps.schedule!.push({
 				d: dd,
 				isMoveOut: true
 			});
-			console.log(pstring(ps) + ' scheduled move-out entry at ' + dd.format(DATE_FORMAT));
+			console.log(pstring(ps) + ' scheduled move-out entry (after lease-end / move-out ' + pLeaseEndMoveOut.format(DATE_FORMAT) + ') at ' + dd.format(DATE_FORMAT));
 		}
 
 		return ps;
@@ -268,6 +270,22 @@ function applyScheduleConstraints(schedule: ScheduleEntry[], options: ScheduleOp
 			curr = start;
 			continue;
 		}
+		const scheduledMoveOut = schedule.find(se => se.p.pid === entry.p.pid && se.si.isMoveOut);
+		// remove dates after or close to moveout inspection
+		if (scheduledMoveOut && !entry.si.isMoveOut) {
+			const isAfter = date.isAfter(scheduledMoveOut.si.d);
+			const isNear = date.week() === scheduledMoveOut.si.d.week();
+			if (isAfter || isNear) {
+				if (isAfter) {
+					console.log(pstring(entry.p) + ' removing ' + date.format(DATE_FORMAT) + ' which is after scheduled move-out: ' + scheduledMoveOut.si.d.format(DATE_FORMAT));
+				} else {
+					console.log(pstring(entry.p) + ' removing ' + date.format(DATE_FORMAT) + ' which is near scheduled move-out: ' + scheduledMoveOut.si.d.format(DATE_FORMAT));
+				}
+				rv.splice(curr, 1);
+				curr = start;
+				continue;
+			}
+		}
 
 		let open = options.pushBlackout(date);
 		if (!date.isSame(open)) {
@@ -280,35 +298,35 @@ function applyScheduleConstraints(schedule: ScheduleEntry[], options: ScheduleOp
 
 		const sameDay = rv.filter((se,i) => i != curr && se.si.d.isSame(date));
 		if (sameDay.length > options.maxPerDay - 1) {
-			console.log('Inpsections ('+sameDay.length+') passes max per day (' + options.maxPerDay + ') for ' + date.format(DATE_FORMAT));
+			console.log('Inpsections ('+sameDay.length+') passes max per day (' + options.maxPerDay + ') for ' + date.format(DATE_FORMAT) + ': ' + selist(sameDay));
 			// Only shift the schedule items that are not move-out inspections or previously scheduled.
 			// If there are too many of them, then keep them all.
 			const sameDayLocked = sameDay.filter(se => se.si.isMoveOut || se.si.isImport);
 			if (sameDayLocked.length < sameDay.length) {
 				const sameDayNotLocked = sameDay.filter(se => !se.si.isMoveOut && !se.si.isImport);
 				const moved = capacityShift(sameDayNotLocked, options.maxPerDay - 1 - sameDayLocked.length);
-				console.log('Moved ('+moved.length+') inspections of '+sameDayNotLocked.length+' moveable for ' + date.format(DATE_FORMAT));
+				console.log('Moved ('+moved.length+') inspections of '+sameDayNotLocked.length+' moveable for ' + date.format(DATE_FORMAT)+ ': ' + selist(moved));
 				sortSchedule(rv);
 				curr = start;
 				continue;
 			} else {
-				console.log('Inpsections not moveable ('+sameDayLocked.length+') (move-out or historical) for ' + date.format(DATE_FORMAT));
+				console.log('Inpsections not moveable ('+sameDayLocked.length+') (move-out or historical) for ' + date.format(DATE_FORMAT)+ ': ' + selist(sameDayLocked));
 			}
 		}
 
 		const sameWeek = rv.filter((se,i) => i != curr && se.si.d.week() == date.week());
 		if (sameWeek.length > options.maxPerWeek - 1) {
-			console.log('Inpsections ('+sameWeek.length+') passes max per week (' + options.maxPerWeek + ') for week ' + date.week());
+			console.log('Inpsections ('+sameWeek.length+') passes max per week (' + options.maxPerWeek + ') for week ' + date.week()+ ': ' + selist(sameWeek));
 			const sameWeekLocked = sameWeek.filter(se => se.si.isMoveOut || se.si.isImport);
 			if (sameWeekLocked.length < sameWeek.length) {
 				const sameWeekNotLocked = sameWeek.filter(se => !se.si.isMoveOut && !se.si.isImport);
 				const moved = capacityShift(sameWeekNotLocked, options.maxPerWeek - 1 - sameWeekLocked.length);
-				console.log('Moved ('+moved.length+') inspections of '+sameWeekNotLocked.length+' moveable for week ' + date.week());
+				console.log('Moved ('+moved.length+') inspections of '+sameWeekNotLocked.length+' moveable for week ' + date.week()+ ': ' + selist(moved));
 				sortSchedule(rv);
 				curr = start;
 				continue;
 			} else {
-				console.log('Inpsections not moveable ('+sameWeekLocked.length+') (move-out or historical) for week ' + date.week());
+				console.log('Inpsections not moveable ('+sameWeekLocked.length+') (move-out or historical) for week ' + date.week()+ ': ' + selist(sameWeekLocked));
 			}
 		}
 

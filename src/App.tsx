@@ -120,7 +120,7 @@ export default function App() {
 					<KeyboardDatePicker
 						value={startDate}
 						placeholder={startDate.format(DATE_FORMAT)}
-						onChange={(date) => setStartDate((date as moment.Moment) ?? moment())}
+						onChange={(date) => startDateUpdated((date as moment.Moment) ?? moment())}
 						format={DATE_FORMAT}
 						rifmFormatter={(str) => str}
 					/>
@@ -165,6 +165,12 @@ export default function App() {
 				</Table>
 		</div>
 	</div>;
+
+	function startDateUpdated(m: moment.Moment) {
+		setStartDate(m);
+		let pss = buildSchedule(propertyList, getOptions());
+		setPropertyList(pss);
+	}
 
 	/**
 	 * Provides parsed property details

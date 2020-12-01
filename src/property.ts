@@ -1,5 +1,6 @@
 import moment from 'moment';
-import { ScheduleItem } from './scheduler';
+import { DATE_FORMAT } from './App';
+import { ScheduleEntry, ScheduleItem } from './scheduler';
 
 export interface Property {
 	pid: string;
@@ -29,6 +30,10 @@ export function pstring(p: Property) : string {
 		return p.address;
 	}
 	return p.address + ' ' + p.unit;
+}
+
+export function selist(ses: ScheduleEntry[]) : string {
+	return ses.map(se => pstring(se.p) + ' ' + se.si.d.format(DATE_FORMAT)).join(' ');
 }
 
 /**
