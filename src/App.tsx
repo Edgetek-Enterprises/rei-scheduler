@@ -2,13 +2,14 @@ import React from 'react';
 import moment from 'moment';
 import './App.css';
 import { makeStyles, Button, Popover, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
+import MomentUtils from '@date-io/moment';
 import { KeyboardDatePicker, MuiPickersUtilsProvider } from "@material-ui/pickers";
 import { toCSVInspections, toCSVSchedule } from './csvutil';
 import { Property, mergeTenants, mergeSchedules, pstring } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
 import { DropZone } from './components/DropZone';
-import MomentUtils from '@date-io/moment';
 import { buildSchedule, ScheduleOptions } from './scheduler';
+import { MultiButton } from './components/MultiButton';
 
 export const DATE_FORMAT = 'MM/DD/YYYY';
 
@@ -105,26 +106,31 @@ export default function App() {
 			{ hasSchedule && <span style={{color: '#0f0', marginLeft: '10px' }}>Previous schedule loaded.</span>}
 			{ !hasSchedule && <span style={{color: '#f00', marginLeft: '10px' }}>No previous schedule loaded.</span>}
 			<div className={classes.scrollContent}>
-				<input type="text"
-					placeholder='Filter'
-					onChange={(evt) => setFilterText(evt.target.value ?? '')}
-					value={filterText}
-				/>
-				<Button variant='contained'
-					className={classes.button}
-					onClick={(evt: any) => download()}
-				>Download Schedule CSV</Button>
-
-				Schedule Start Date:
-				<MuiPickersUtilsProvider utils={MomentUtils}>
-					<KeyboardDatePicker
-						value={startDate}
-						placeholder={startDate.format(DATE_FORMAT)}
-						onChange={(date) => startDateUpdated((date as moment.Moment) ?? moment())}
-						format={DATE_FORMAT}
-						rifmFormatter={(str) => str}
+				<div className={classes.configBar}>
+					<input type="text"
+						placeholder='Filter'
+						onChange={(evt) => setFilterText(evt.target.value ?? '')}
+						value={filterText}
 					/>
-				</MuiPickersUtilsProvider>
+					<span style={{padding: '0px 20px'}}>
+						<MultiButton content={[
+							{title:'Inspections', handler: downloadInspections},
+							{title:'Schedule', handler: downloadSchedule}]}
+						/>
+					</span>
+
+					Schedule Start Date:
+					<MuiPickersUtilsProvider utils={MomentUtils}>
+						<KeyboardDatePicker
+							value={startDate}
+							style={{width:'120px'}}
+							placeholder={startDate.format(DATE_FORMAT)}
+							onChange={(date) => startDateUpdated((date as moment.Moment) ?? moment())}
+							format={DATE_FORMAT}
+							rifmFormatter={(str) => str}
+						/>
+					</MuiPickersUtilsProvider>
+				</div>
 				<Table
 					aria-labelledby="tableTitle"
 					className={classes.table}
@@ -167,7 +173,14 @@ export default function App() {
 	</div>;
 
 	function startDateUpdated(m: moment.Moment) {
+		if (!m.isValid()) {
+			return;
+		}
 		setStartDate(m);
+		propertyList.forEach(p => {
+			p.schedule = (p.schedule ?? []).filter(s => s.isImport);
+			console.log('Computed schedule reset for ' + pstring(p));
+		})
 		let pss = buildSchedule(propertyList, getOptions());
 		setPropertyList(pss);
 	}
@@ -382,17 +395,18 @@ export default function App() {
 			 });
 		});
 	}
-
-	function download() {
+	function downloadInspections() {
 		const doctag = document.createElement('a');
 		let data = toCSVInspections(propertyList);
 		let file = new Blob([data], { type: 'text/csv' });
 		doctag.href = URL.createObjectURL(file);
 		doctag.download = 'rei-property-inspections.csv';
 		doctag.click();
-
-		data = toCSVSchedule(propertyList);
-		file = new Blob([data], { type: 'text/csv' });
+	}
+	function downloadSchedule() {
+		const doctag = document.createElement('a');
+		let data = toCSVSchedule(propertyList);
+		let file = new Blob([data], { type: 'text/csv' });
 		doctag.href = URL.createObjectURL(file);
 		doctag.download = 'rei-schedule.csv';
 		doctag.click();
@@ -476,4 +490,7 @@ const STYLES = makeStyles((theme: Theme) => ({
 			boxShadow: 'none',
 		},
 	},
+	configBar: {
+		display: 'inline',
+	}
 }));
