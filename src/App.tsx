@@ -1,13 +1,14 @@
 import React from 'react';
 import moment from 'moment';
 import './App.css';
-import { makeStyles, Button, Popover, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
+import { makeStyles, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
 import MomentUtils from '@date-io/moment';
 import { KeyboardDatePicker, MuiPickersUtilsProvider } from "@material-ui/pickers";
-import { toCSVInspections, toCSVSchedule } from './csvutil';
+import { toCSVInspections, toCSVSchedule } from './util/csvutil';
 import { Property, mergeTenants, mergeSchedules, pstring } from './property';
-import { ColumnData, handleSortChange, SortData, sortRows } from './tableutil';
+import { ColumnData, handleSortChange, SortData, sortRows } from './util/tableutil';
 import { DropZone } from './components/DropZone';
+import { AppHeader } from './components/AppHeader';
 import { buildSchedule, ScheduleOptions } from './scheduler';
 import { MultiButton } from './components/MultiButton';
 
@@ -31,144 +32,86 @@ export default function App() {
 	const hasSchedule = propertyList.find(p => p.schedule?.some(si => si.isImport)) !== undefined;
 	const hasTenants = propertyList.find(p => p.tenants?.some(ti => !!ti)) !== undefined;
 
-	const [popInstructionAnchor, setPopInstructionAnchor] = React.useState<HTMLButtonElement | undefined>();
-
-	const popInstructionOpen = Boolean(popInstructionAnchor);
-	const popInstructionOpenId = popInstructionOpen ? 'simple-popover' : undefined;
-
 	return <div className="App">
-			<header className="App-header">
-				<p>
-					REI Scheduler
-					<Button
-						aria-describedby={popInstructionOpenId}
-						style={{marginLeft: '10px'}}
-						variant="contained"
-						color="primary"
-						onClick={(evt) => setPopInstructionAnchor(evt.currentTarget)}
-					>
-						Instructions
-					</Button>
-				</p>
-			</header>
-			<Popover
-				id={popInstructionOpenId}
-				open={popInstructionOpen}
-				anchorEl={popInstructionAnchor}
-				onClose={() => setPopInstructionAnchor(undefined)}
-				anchorOrigin={{
-					vertical: 'bottom',
-					horizontal: 'center',
-				}}
-				transformOrigin={{
-					vertical: 'top',
-					horizontal: 'center',
-				}}
-			>
-				<div>
-					Input a <strong>base properties list</strong> to determine what properties to use. If it contains a historical schedule, this will also be imported.
-					The scheduler will execute and generate schedules.
-					Columns: Property Street Address 1, Property City, Property State,
-					Property Zip (numeric), Unit, Lease From (mm/dd/yyyy), Lease To (mm/dd/yyyy), Move-out (mm/dd/yyyy); optional columns: Inspection 1 (mm/dd/yyyy),
-					Inspection 2 (mm/dd/yyyy), ..., Inspection N (mm/dd/yyyy)
-				</div>
-				<div>
-					Input a <strong>properties list with tenant details</strong> to decorate the current properties with tenant details. No new property rows are created.
-					A base properties list must already exist. Row addresses may be duplicates, and each row will create a tenant record on the existing imported property list.
-					Columns: Property Street Address 1, Property City, Property State,
-					Property Zip (numeric), Unit, Lease From (mm/dd/yyyy), Lease To (mm/dd/yyyy), Move-out (mm/dd/yyyy), Tenant, Phone Numbers, Emails
-				</div>
-				<div>
-					Input a <strong>previous schedule</strong> to replace the schedule for the current properties list. No new property rows are created.
-					The scheduler will execute and generate schedules.
-					Schedule dates with <em>Hist</em> are "historical" imported schedule events and are not moved by the scheduler. Remove the schedule for the input row
-					to generate a new schedule for a property.
-					Columns: Property Street Address 1, Property City, Property State,
-					Property Zip (numeric), Unit, Lease From (mm/dd/yyyy), Lease To (mm/dd/yyyy), Move-out (mm/dd/yyyy); optional columns: Inspection 1 (mm/dd/yyyy),
-					Inspection 2 (mm/dd/yyyy), ..., Inspection N (mm/dd/yyyy)
-				</div>
-				<div>
-					Schedule dates with <em>MoveOut</em> are "move-out" inspections, scheduled the next day after a move-out or lease end and are not moved by the scheduler.
-				</div>
-			</Popover>
-			<div className='dropzones'>
-				<DropZone message={<>Drop the <strong>base properties list</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
-					handleData={propertyListUpdated} />
-				<DropZone message={<>Drop the <strong>properties list with tenant details</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
-					handleData={propertyListTenantsUpdated} />
-				<DropZone message={<>Drop the <strong>previous schedule</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
-					handleData={priorScheduleUpdated} />
-			</div>
-			{ propertyList.length > 0 && <span style={{color: '#0f0' }}>{propertyList.length} properties available.</span>}
-			{ propertyList.length == 0 && <span style={{color: '#f00' }}>{propertyList.length} properties available.</span>}
-			{ hasTenants && <span style={{color: '#0f0', marginLeft: '10px' }}>Tenant data loaded.</span>}
-			{ !hasTenants && <span style={{color: '#f00', marginLeft: '10px' }}>No tenant data loaded.</span>}
-			{ hasSchedule && <span style={{color: '#0f0', marginLeft: '10px' }}>Previous schedule loaded.</span>}
-			{ !hasSchedule && <span style={{color: '#f00', marginLeft: '10px' }}>No previous schedule loaded.</span>}
-			<div className={classes.scrollContent}>
-				<div className={classes.configBar}>
-					<input type="text"
-						placeholder='Filter'
-						onChange={(evt) => setFilterText(evt.target.value ?? '')}
-						value={filterText}
+		<AppHeader />
+		<div className='dropzones'>
+			<DropZone message={<>Drop the <strong>base properties list</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+				handleData={propertyListUpdated} />
+			<DropZone message={<>Drop the <strong>properties list with tenant details</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+				handleData={propertyListTenantsUpdated} />
+			<DropZone message={<>Drop the <strong>previous schedule</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+				handleData={priorScheduleUpdated} />
+		</div>
+		{ propertyList.length > 0 && <span style={{color: '#0f0' }}>{propertyList.length} properties available.</span>}
+		{ propertyList.length == 0 && <span style={{color: '#f00' }}>{propertyList.length} properties available.</span>}
+		{ hasTenants && <span style={{color: '#0f0', marginLeft: '10px' }}>Tenant data loaded.</span>}
+		{ !hasTenants && <span style={{color: '#f00', marginLeft: '10px' }}>No tenant data loaded.</span>}
+		{ hasSchedule && <span style={{color: '#0f0', marginLeft: '10px' }}>Previous schedule loaded.</span>}
+		{ !hasSchedule && <span style={{color: '#f00', marginLeft: '10px' }}>No previous schedule loaded.</span>}
+		<div className={classes.scrollContent}>
+			<div className={classes.configBar}>
+				<input type="text"
+					placeholder='Filter'
+					onChange={(evt) => setFilterText(evt.target.value ?? '')}
+					value={filterText}
+				/>
+				<span style={{padding: '0px 20px'}}>
+					<MultiButton content={[
+						{title:'Inspections', handler: downloadInspections},
+						{title:'Schedule', handler: downloadSchedule}]}
 					/>
-					<span style={{padding: '0px 20px'}}>
-						<MultiButton content={[
-							{title:'Inspections', handler: downloadInspections},
-							{title:'Schedule', handler: downloadSchedule}]}
-						/>
-					</span>
+				</span>
 
-					Schedule Start Date:
-					<MuiPickersUtilsProvider utils={MomentUtils}>
-						<KeyboardDatePicker
-							value={startDate}
-							style={{width:'120px'}}
-							placeholder={startDate.format(DATE_FORMAT)}
-							onChange={(date) => startDateUpdated((date as moment.Moment) ?? moment())}
-							format={DATE_FORMAT}
-							rifmFormatter={(str) => str}
-						/>
-					</MuiPickersUtilsProvider>
-				</div>
-				<Table
-					aria-labelledby="tableTitle"
-					className={classes.table}
-				>
-					<TableHead className={classes.tableHead}>
-							<TableRow>
-								{columnData.map((cd, idx) => <TableCell
-										key={idx}
-										className={classes.tableHeaderCell}
-										sortDirection={sorted.dir}
-								>
-										<TableSortLabel
-											active={sorted.col.id === cd.id}
-											direction={sorted.dir}
-											onClick={() => handleSortChange(sorted, cd, setSorted)}
+				Schedule Start Date:
+				<MuiPickersUtilsProvider utils={MomentUtils}>
+					<KeyboardDatePicker
+						value={startDate}
+						style={{width:'120px'}}
+						placeholder={startDate.format(DATE_FORMAT)}
+						onChange={(date) => startDateUpdated((date as moment.Moment) ?? moment())}
+						format={DATE_FORMAT}
+						rifmFormatter={(str) => str}
+					/>
+				</MuiPickersUtilsProvider>
+			</div>
+			<Table
+				aria-labelledby="tableTitle"
+				className={classes.table}
+			>
+				<TableHead className={classes.tableHead}>
+						<TableRow>
+							{columnData.map((cd, idx) => <TableCell
+									key={idx}
+									className={classes.tableHeaderCell}
+									sortDirection={sorted.dir}
+							>
+									<TableSortLabel
+										active={sorted.col.id === cd.id}
+										direction={sorted.dir}
+										onClick={() => handleSortChange(sorted, cd, setSorted)}
+									>
+										{cd.title}
+									</TableSortLabel>
+							</TableCell>)}
+						</TableRow>
+				</TableHead>
+				<TableBody className={classes.scrollContent}>
+						{ items.map((p, idx) => {
+							return <TableRow key={p.pid} >
+									{columnData.map((cd, idx) => <TableCell
+											className={classes.tableCell}
+											key={p.pid + '.' + cd.id}
+											scope="row"
 										>
-											{cd.title}
-										</TableSortLabel>
-								</TableCell>)}
-							</TableRow>
-					</TableHead>
-					<TableBody className={classes.scrollContent}>
-							{ items.map((p, idx) => {
-								return <TableRow key={p.pid} >
-										{columnData.map((cd, idx) => <TableCell
-												className={classes.tableCell}
-												key={p.pid + '.' + cd.id}
-												scope="row"
-											>
-												<div className={classes.tableCellText}>
-													{cd.value(p)}
-												</div>
-											</TableCell>)
-										}
-								</TableRow>;})
-							}
-					</TableBody>
-				</Table>
+											<div className={classes.tableCellText}>
+												{cd.value(p)}
+											</div>
+										</TableCell>)
+									}
+							</TableRow>;})
+						}
+				</TableBody>
+			</Table>
 		</div>
 	</div>;
 

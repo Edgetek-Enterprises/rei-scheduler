@@ -2,7 +2,7 @@ import React from "react";
 import CloudUploadIcon from '@material-ui/icons/CloudUpload';
 import { useDropzone } from 'react-dropzone';
 import { Property } from "../property";
-import { isCSV, parseCsvProperties } from '../csvutil';
+import { isCSV, parseCsvProperties } from '../util/csvutil';
 
 export const DropZone = (props: {
 	message: any;
