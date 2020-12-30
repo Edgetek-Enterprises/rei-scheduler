@@ -2,10 +2,11 @@ import React from "react";
 import CloudUploadIcon from '@material-ui/icons/CloudUpload';
 import { useDropzone } from 'react-dropzone';
 import { Property } from "../property";
-import { isCSV, parseCsvProperties } from '../util/csvutil';
+import { CsvType, isCSV, parseCsvProperties } from '../util/csvutil';
 
 export const DropZone = (props: {
 	message: any;
+	type: CsvType;
 	handleData: (p: Property[]) => string | undefined;
 }) => {
 	const [errMsg, setErrMsg] = React.useState<string | undefined>();
@@ -23,7 +24,7 @@ export const DropZone = (props: {
 			return;
 		}
 		setProcessing(true);
-		parseCsvProperties(f, (ps) => {
+		parseCsvProperties(f, props.type, (ps) => {
 				const msg = props.handleData(ps);
 				setProcessing(false);
 				if (msg) {

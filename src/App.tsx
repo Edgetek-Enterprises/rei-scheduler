@@ -4,7 +4,7 @@ import './App.css';
 import { makeStyles, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
 import MomentUtils from '@date-io/moment';
 import { KeyboardDatePicker, MuiPickersUtilsProvider } from "@material-ui/pickers";
-import { toCSVInspections, toCSVSchedule } from './util/csvutil';
+import { CsvType, toCSVInspections, toCSVSchedule } from './util/csvutil';
 import { Property, mergeTenants, mergeSchedules, pstring } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './util/tableutil';
 import { DropZone } from './components/DropZone';
@@ -36,10 +36,13 @@ export default function App() {
 		<AppHeader />
 		<div className='dropzones'>
 			<DropZone message={<>Drop the <strong>base properties list</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+				type={CsvType.PropertiesBase}
 				handleData={propertyListUpdated} />
 			<DropZone message={<>Drop the <strong>properties list with tenant details</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+				type={CsvType.PropertiesTenants}
 				handleData={propertyListTenantsUpdated} />
 			<DropZone message={<>Drop the <strong>previous schedule</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+				type={CsvType.PropertiesSchedules}
 				handleData={priorScheduleUpdated} />
 		</div>
 		{ propertyList.length > 0 && <span style={{color: '#0f0' }}>{propertyList.length} properties available.</span>}

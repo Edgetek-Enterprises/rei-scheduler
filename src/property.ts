@@ -16,6 +16,8 @@ export interface Property {
 	scheduleMessage?: string;
 	schedule?: ScheduleItem[];
 	tenants?: TenantDetails[];
+	// Extra properties from the input file to be included in the export
+	extra?: {[k:string]: string};
 }
 
 export interface TenantDetails {
@@ -66,6 +68,12 @@ export function mergeTenants(base: Property[], tenants: Property[]) : Property[]
 				prop.tenants = [];
 			}
 			tp.tenants?.forEach(t => prop!.tenants!.push(t));
+			if (tp.extra) {
+				prop.extra = prop.extra ?? {};
+				Object.keys(tp.extra).forEach(kx => {
+					prop!.extra![kx] = tp.extra![kx];
+				});
+			}
 		}
 	});
 

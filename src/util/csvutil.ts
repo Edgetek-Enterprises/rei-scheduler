@@ -4,7 +4,14 @@ import Papa from 'papaparse';
 import { Property, TenantDetails } from '../property';
 import { DATE_FORMAT } from '../App';
 
-export interface CsvHeader {
+export enum CsvType {
+	PropertiesBase,
+	PropertiesTenants,
+	PropertiesSchedules,
+	PropertiesLastInspection,
+}
+
+interface CsvHeader {
 	title: string;
 	field: string;
 	type?: undefined | 'number' | 'date';
@@ -52,16 +59,19 @@ const FIRST_COLUMN_TOTAL_VALUE = 'Total';
  * These columns are used for the property input file as well as for the previous schedule input file.
  * The previous schedule input file also contains inspection columns
  */
-export const HEADER_FIELDS : {[header:string]: CsvHeader} = {};
+export const HEADER_FIELDS : {[title:string]: CsvHeader} = {};
 HEADER_FIELDS_LIST.reduce((p,c) => { p[c.title] = c; return p; } , HEADER_FIELDS);
 
-export const TENANT_FIELDS : {[header:string]: CsvHeader} = {};
+/**
+ * Additional columns used in the tenant data import
+ */
+export const TENANT_FIELDS : {[title:string]: CsvHeader} = {};
 TENANT_FIELDS_LIST.reduce((p,c) => { p[c.title] = c; return p; } , TENANT_FIELDS);
 
 /**
  * These columns are used for the one-inspection-per-row export
  */
-const HEADER_FIELDS_SCHEDULE : {[header:string]: CsvHeader} = {};
+const HEADER_FIELDS_SCHEDULE : {[title:string]: CsvHeader} = {};
 HEADER_FIELDS_SCHEDULE_LIST.reduce((p,c) => { p[c.title] = c; return p; } , HEADER_FIELDS_SCHEDULE);
 
 
@@ -72,7 +82,7 @@ export function isCSV(f: File) : boolean {
 /**
  * Parse a CSV of property instances, which may or may not include previous schedule and tenant information
  */
-export function parseCsvProperties(f: File, done: (result: Property[]) => void, err: (msg: string) => void) : void {
+export function parseCsvProperties(f: File, t: CsvType, done: (result: Property[]) => void, err: (msg: string) => void) : void {
 	let props : Property[] = [];
 	let line = 0;
 	let hasSchedule = false;
@@ -84,16 +94,17 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 		worker: false,
 		skipEmptyLines: false,
 
-		// Detects whether the row contains headers; parses date/numeric values; return 'undefined' to indicate failure
+		// parses date/numeric values; return 'undefined' to indicate no value (convert from empty string in most cases) or NODATA
 		transform: (value, field) => {
+			// If the value for this column is an empty string
 			if (value.length <= 0) {
 				const h = HEADER_FIELDS[field];
-				// not a Property field
+				// not an expected column; this only handles empty values, step() handles failing due to unexpected column title
 				if (!h) {
-					if (HEADER_INSPECTION_REGEX.test(String(field))) {
+					if (t == CsvType.PropertiesSchedules && HEADER_INSPECTION_REGEX.test(String(field))) {
 						return undefined;
 					}
-					if (Object.keys(TENANT_FIELDS).find(k => k === field)) {
+					if (t == CsvType.PropertiesTenants && Object.keys(TENANT_FIELDS).find(k => k === field)) {
 						return undefined;
 					}
 					// Handle this in 'step' where we can abort parse
@@ -101,18 +112,22 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 				}
 
 				if (h.isImportOptional) {
+					// convert empty string to undefined value
 					return undefined;
 				}
+				// First column can have undefined value indicating a blank row; other rows get NODATA
 				if (field === HEADER_FIRST_COLUMN) {
 					return undefined;
 				}
 				return NODATA;
 			}
+
+			//TODO: this perhaps could be done in Papa.ParseConfig.dynamicTyping
 			switch (HEADER_FIELDS[field]?.type) {
 				case 'date': return moment(value, DATE_FORMAT);
 				case 'number': return parseInt(value);
 			}
-			if (HEADER_INSPECTION_REGEX.test(String(field))) {
+			if (t == CsvType.PropertiesSchedules && HEADER_INSPECTION_REGEX.test(String(field))) {
 				return moment(value, DATE_FORMAT);
 			}
 			return value;
@@ -170,7 +185,7 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 						}
 					}
 					(prop as any)[h.field] = rowObj[key];
-				} else if (HEADER_INSPECTION_REGEX.test(key)) {
+				} else if (t == CsvType.PropertiesSchedules && HEADER_INSPECTION_REGEX.test(key)) {
 					const d = rowObj[key] as moment.Moment;
 					if (d && d.isValid()) {
 						let ps = prop.schedule ?? [];
@@ -180,8 +195,8 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 							isImport: true
 						});
 					}
-				} else if (Object.keys(TENANT_FIELDS).find(k => k === key)) {
-					const h = TENANT_FIELDS[key];
+				} else if (t == CsvType.PropertiesTenants && Object.keys(TENANT_FIELDS).find(k => k === key)) {
+					const ht = TENANT_FIELDS[key];
 					if (!prop.tenants) {
 						prop.tenants = [];
 					}
@@ -194,11 +209,17 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 						prop.tenants.push(t);
 					}
 
-					(t as any)[h.field] = rowObj[key];
+					(t as any)[ht.field] = rowObj[key];
 				} else {
-					err('Unhandled column in input file: ' + key);
-					parser.abort();
-					return;
+					// Don't allow unexpected columns from these import types
+					if (t == CsvType.PropertiesSchedules || t == CsvType.PropertiesLastInspection) {
+						err('Unhandled column in input file: ' + key);
+						parser.abort();
+						return;
+					}
+
+					prop.extra = prop.extra ?? {};
+					prop.extra[key] = rowObj[key];
 				}
 			});
 
@@ -219,7 +240,8 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
  */
 export function toCSVInspections(data: Property[]) : string {
 	const headers = Object.keys(HEADER_FIELDS);
-	let extras : string[] = [];
+	let inspections : string[] = [];
+	let extra : string[] = [];
 
 	let out = data.map(p => {
 		let rv : any = {};
@@ -237,16 +259,35 @@ export function toCSVInspections(data: Property[]) : string {
 		p.schedule?.forEach((s,i) => {
 			let t = HEADER_INSPECTION_PREFIX + (i+1);
 			rv[t] = s.d.format(DATE_FORMAT);
-			if (extras.length < (i + 1)) {
-				extras.push(t);
+			if (inspections.length < (i + 1)) {
+				inspections.push(t);
 			}
 		});
+		Object.keys(p.extra ?? {}).forEach(kx => {
+			if (!extra.includes(kx)) {
+				extra.push(kx);
+			}
+		});
+
+		extra.forEach(h => {
+			let v = p.extra?.[h];
+			if (v) {
+				rv[h] = v;
+			}
+		})
+
 		return rv;
 	});
 
+	[...headers, ...inspections].forEach(h => {
+		if (extra.includes(h)) {
+			console.log('Warning: exported property contains natural field and unexpected/custom imported column: "'+h+'"');
+		}
+	})
+
 	return Papa.unparse(out, {
 		skipEmptyLines: true,
-		columns: [...headers, ...extras],
+		columns: [...headers, ...extra, ...inspections],
 		newline: '\n',
 	});
 }
@@ -263,6 +304,7 @@ export function toCSVSchedule(data: Property[]) : string {
 	}
 	// First, transform the schedule into a sorted output
 	let schedule : Row[] = [];
+	let extra : string[] = [];
 	data.forEach(p => {
 		p.schedule?.forEach((s,i) => {
 			schedule.push({
@@ -271,6 +313,11 @@ export function toCSVSchedule(data: Property[]) : string {
 				number: i+1,
 				type: s.isMoveOut ? 'Move-out' : 'Quarterly',
 			});
+		});
+		Object.keys(p.extra ?? {}).forEach(kx => {
+			if (!extra.includes(kx)) {
+				extra.push(kx);
+			}
 		});
 	});
 	schedule.sort((a,b) => {
@@ -283,6 +330,12 @@ export function toCSVSchedule(data: Property[]) : string {
 
 	const headers = Object.keys(HEADER_FIELDS_SCHEDULE);
 	const tenant = Object.keys(TENANT_FIELDS);
+
+	[...headers, ...tenant].forEach(h => {
+		if (extra.includes(h)) {
+			console.log('Warning: exported property contains natural field and unexpected/custom imported column: "'+h+'"');
+		}
+	})
 
 	let out = schedule.map(r => {
 		let rv : any = {};
@@ -308,12 +361,19 @@ export function toCSVSchedule(data: Property[]) : string {
 
 			rv[h] = v;
 		});
+		extra.forEach(h => {
+			let v = r.p.extra?.[h];
+			if (v) {
+				rv[h] = v;
+			}
+		})
+
 		return rv;
 	});
 
 	return Papa.unparse(out, {
 		skipEmptyLines: true,
-		columns: [...headers, ...tenant],
+		columns: [...headers, ...tenant, ...extra],
 		newline: '\n',
 	});
 }

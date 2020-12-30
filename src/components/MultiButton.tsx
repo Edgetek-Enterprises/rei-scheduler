@@ -20,6 +20,7 @@ export const MultiButton = (props: {
 			<MenuItem value='' disabled>Download CSV</MenuItem>
 			{ props.content.map((c,i) =>
 				<MenuItem
+					key={i}
 					onClick={event => props.content[i].handler()}
 				>
 					{ props.content[i].title }
