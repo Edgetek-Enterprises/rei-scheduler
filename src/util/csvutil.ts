@@ -4,50 +4,66 @@ import Papa from 'papaparse';
 import { Property, TenantDetails } from '../property';
 import { DATE_FORMAT } from '../App';
 
+export interface CsvHeader {
+	title: string;
+	field: string;
+	type?: undefined | 'number' | 'date';
+	isImportOptional?: boolean;
+	/** If true, will go as part of the schedule, otherwise will be a part of the property */
+	isSchedField?: boolean;
+}
+
+const HEADER_FIELDS_LIST : CsvHeader[] = [
+	{ title: 'Property Street Address 1', field: 'address' },
+	{ title: 'Property City', field: 'city' },
+	{ title: 'Property State', field: 'state' },
+	{ title: 'Property Zip', field: 'zip', type: 'number' },
+	{ title: 'Unit', field: 'unit', isImportOptional: true},
+	{ title: 'Lease From', field: 'leaseStart', type: 'date', isImportOptional: true},
+	{ title: 'Lease To', field: 'leaseEnd', type: 'date', isImportOptional: true},
+	{ title: 'Move-out', field: 'moveOut', type: 'date', isImportOptional: true},
+];
+const TENANT_FIELDS_LIST : CsvHeader[] = [
+	{ title: 'Tenant', field: 'name', isImportOptional: true},
+	{ title: 'Phone Numbers', field: 'phone', isImportOptional: true},
+	{ title: 'Emails', field: 'email', isImportOptional: true},
+];
+
+const HEADER_FIELDS_SCHEDULE_LIST : CsvHeader[] = [
+	{ title: 'Inspection Date', field: 'date', isSchedField: true, type: 'date' },
+	{ title: 'Inspection Number', field: 'number', isSchedField: true },
+	{ title: 'Property Street Address 1', field: 'address' },
+	{ title: 'Property City',  field: 'city' },
+	{ title: 'Property State', field: 'state' },
+	{ title: 'Property Zip', field: 'zip', type: 'number' },
+	{ title: 'Unit', field: 'unit' },
+	{ title: 'Lease From', field: 'leaseStart', type: 'date' },
+	{ title: 'Lease To', field: 'leaseEnd', type: 'date' },
+	{ title: 'Move-out', field: 'moveOut', type: 'date' },
+	{ title: 'Inspection Type', field: 'type', isSchedField: true },
+];
+
+const HEADER_INSPECTION_REGEX = /Inspection \d+/;
+const HEADER_INSPECTION_PREFIX = 'Inspection ';
+const HEADER_FIRST_COLUMN = HEADER_FIELDS_LIST[0].title;
+const FIRST_COLUMN_TOTAL_VALUE = 'Total';
+
 /**
  * These columns are used for the property input file as well as for the previous schedule input file.
  * The previous schedule input file also contains inspection columns
  */
-const HEADER_FIELDS : {[header:string]:{name: string, type?: string, optional?:boolean}} = {
-	'Property Street Address 1':{ name: 'address' },
-	'Property City':{ name: 'city' },
-	'Property State':{ name: 'state' },
-	'Property Zip':{ name: 'zip', type: 'number' },
-	'Unit':{ name: 'unit', optional: true},
-	'Lease From':{ name: 'leaseStart', type: 'date', optional: true},
-	'Lease To':{ name: 'leaseEnd', type: 'date', optional: true},
-	'Move-out':{ name: 'moveOut', type: 'date', optional: true},
-}
+export const HEADER_FIELDS : {[header:string]: CsvHeader} = {};
+HEADER_FIELDS_LIST.reduce((p,c) => { p[c.title] = c; return p; } , HEADER_FIELDS);
 
-//NOTE: same value as in HEADER_FIELDS above
-const HEADER_FIRST_COLUMN = 'Property Street Address 1';
-const FIRST_COLUMN_TOTAL_VALUE = 'Total';
-
-const TENANT_FIELDS : {[header:string]:{name: string, type?: string, optional?:boolean}} = {
-	'Tenant':{ name: 'name', optional: true},
-	'Phone Numbers':{ name: 'phone', optional: true},
-	'Emails':{ name: 'email', optional: true},
-};
-
-const HEADER_INSPECTION_REGEX = /Inspection \d+/;
-const HEADER_INSPECTION_PREFIX = 'Inspection ';
+export const TENANT_FIELDS : {[header:string]: CsvHeader} = {};
+TENANT_FIELDS_LIST.reduce((p,c) => { p[c.title] = c; return p; } , TENANT_FIELDS);
 
 /**
  * These columns are used for the one-inspection-per-row export
  */
-const HEADER_FIELDS_SCHEDULE : {[header:string]:{name: string, type?: string, sched?:boolean}} = {
-	'Inspection Date': {name: 'date', sched: true, type: 'date' },
-	'Inspection Number': {name: 'number', sched: true },
-	'Property Street Address 1':{ name: 'address' },
-	'Property City':{ name: 'city' },
-	'Property State':{ name: 'state' },
-	'Property Zip':{ name: 'zip', type: 'number' },
-	'Unit':{ name: 'unit' },
-	'Lease From':{ name: 'leaseStart', type: 'date' },
-	'Lease To':{ name: 'leaseEnd', type: 'date' },
-	'Move-out':{ name: 'moveOut', type: 'date' },
-	'Inspection Type': { name: 'type', sched: true },
-}
+const HEADER_FIELDS_SCHEDULE : {[header:string]: CsvHeader} = {};
+HEADER_FIELDS_SCHEDULE_LIST.reduce((p,c) => { p[c.title] = c; return p; } , HEADER_FIELDS_SCHEDULE);
+
 
 export function isCSV(f: File) : boolean {
 	return f.name.endsWith('.csv');
@@ -84,7 +100,7 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 					return value;
 				}
 
-				if (h.optional) {
+				if (h.isImportOptional) {
 					return undefined;
 				}
 				if (field === HEADER_FIRST_COLUMN) {
@@ -153,7 +169,7 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 							return;
 						}
 					}
-					(prop as any)[h.name] = rowObj[key];
+					(prop as any)[h.field] = rowObj[key];
 				} else if (HEADER_INSPECTION_REGEX.test(key)) {
 					const d = rowObj[key] as moment.Moment;
 					if (d && d.isValid()) {
@@ -178,7 +194,7 @@ export function parseCsvProperties(f: File, done: (result: Property[]) => void, 
 						prop.tenants.push(t);
 					}
 
-					(t as any)[h.name] = rowObj[key];
+					(t as any)[h.field] = rowObj[key];
 				} else {
 					err('Unhandled column in input file: ' + key);
 					parser.abort();
@@ -209,7 +225,7 @@ export function toCSVInspections(data: Property[]) : string {
 		let rv : any = {};
 		headers.forEach(h => {
 			const head = HEADER_FIELDS[h];
-			let v = (p as any)[head.name];
+			let v = (p as any)[head.field];
 
 			switch (head?.type) {
 				case 'date': v = (v as moment.Moment)?.format(DATE_FORMAT); break;
@@ -273,10 +289,10 @@ export function toCSVSchedule(data: Property[]) : string {
 		headers.forEach(h => {
 			const head = HEADER_FIELDS_SCHEDULE[h];
 			let v = undefined;
-			if (head.sched) {
-				v = (r as any)[head.name];
+			if (head.isSchedField) {
+				v = (r as any)[head.field];
 			} else {
-				v = (r.p as any)[head.name];
+				v = (r.p as any)[head.field];
 			}
 
 			switch (head?.type) {
@@ -288,7 +304,7 @@ export function toCSVSchedule(data: Property[]) : string {
 		});
 		tenant.forEach(h => {
 			const head = TENANT_FIELDS[h];
-			let v = r.p.tenants?.map((t,i) => '['+(i+1)+'] ' + (t as any)[head.name]).join(' ');
+			let v = r.p.tenants?.map((t,i) => '['+(i+1)+'] ' + (t as any)[head.field]).join(' ');
 
 			rv[h] = v;
 		});
