@@ -26,6 +26,7 @@ const HEADER_FIELDS_LIST : CsvHeader[] = [
 	{ title: 'Property State', field: 'state' },
 	{ title: 'Property Zip', field: 'zip', type: 'number' },
 	{ title: 'Unit', field: 'unit', isImportOptional: true},
+	{ title: 'Unit Name', field: 'unit', isImportOptional: true},
 	{ title: 'Lease From', field: 'leaseStart', type: 'date', isImportOptional: true},
 	{ title: 'Lease To', field: 'leaseEnd', type: 'date', isImportOptional: true},
 	{ title: 'Move-out', field: 'moveOut', type: 'date', isImportOptional: true},
@@ -34,6 +35,10 @@ const TENANT_FIELDS_LIST : CsvHeader[] = [
 	{ title: 'Tenant', field: 'name', isImportOptional: true},
 	{ title: 'Phone Numbers', field: 'phone', isImportOptional: true},
 	{ title: 'Emails', field: 'email', isImportOptional: true},
+];
+
+const LASTINSPECT_FIELDS_LIST : CsvHeader[] = [
+	{ title: 'Last Inspection Date', field: 'date', type: 'date', isSchedField: true },
 ];
 
 const HEADER_FIELDS_SCHEDULE_LIST : CsvHeader[] = [
@@ -55,25 +60,26 @@ const HEADER_INSPECTION_PREFIX = 'Inspection ';
 const HEADER_FIRST_COLUMN = HEADER_FIELDS_LIST[0].title;
 const FIRST_COLUMN_TOTAL_VALUE = 'Total';
 
+/** Utility function to convert a list to a map */
+const tomap = (p: {[title:string]:CsvHeader}, c: CsvHeader) => { p[c.title] = c; return p; };
+
 /**
  * These columns are used for the property input file as well as for the previous schedule input file.
  * The previous schedule input file also contains inspection columns
  */
-export const HEADER_FIELDS : {[title:string]: CsvHeader} = {};
-HEADER_FIELDS_LIST.reduce((p,c) => { p[c.title] = c; return p; } , HEADER_FIELDS);
+const HEADER_FIELDS : {[title:string]: CsvHeader} = HEADER_FIELDS_LIST.reduce(tomap, {});
 
 /**
  * Additional columns used in the tenant data import
  */
-export const TENANT_FIELDS : {[title:string]: CsvHeader} = {};
-TENANT_FIELDS_LIST.reduce((p,c) => { p[c.title] = c; return p; } , TENANT_FIELDS);
+const TENANT_FIELDS : {[title:string]: CsvHeader} = TENANT_FIELDS_LIST.reduce(tomap, {});
 
 /**
  * These columns are used for the one-inspection-per-row export
  */
-const HEADER_FIELDS_SCHEDULE : {[title:string]: CsvHeader} = {};
-HEADER_FIELDS_SCHEDULE_LIST.reduce((p,c) => { p[c.title] = c; return p; } , HEADER_FIELDS_SCHEDULE);
+const HEADER_FIELDS_SCHEDULE : {[title:string]: CsvHeader} = HEADER_FIELDS_SCHEDULE_LIST.reduce(tomap, {});
 
+const LASTINSPECT_FIELDS : {[title:string]: CsvHeader} = LASTINSPECT_FIELDS_LIST.reduce(tomap, {});
 
 export function isCSV(f: File) : boolean {
 	return f.name.endsWith('.csv');
@@ -128,6 +134,9 @@ export function parseCsvProperties(f: File, t: CsvType, done: (result: Property[
 				case 'number': return parseInt(value);
 			}
 			if (t == CsvType.PropertiesSchedules && HEADER_INSPECTION_REGEX.test(String(field))) {
+				return moment(value, DATE_FORMAT);
+			}
+			if (t == CsvType.PropertiesLastInspection && LASTINSPECT_FIELDS[field]?.type == 'date') {
 				return moment(value, DATE_FORMAT);
 			}
 			return value;
@@ -186,6 +195,16 @@ export function parseCsvProperties(f: File, t: CsvType, done: (result: Property[
 					}
 					(prop as any)[h.field] = rowObj[key];
 				} else if (t == CsvType.PropertiesSchedules && HEADER_INSPECTION_REGEX.test(key)) {
+					const d = rowObj[key] as moment.Moment;
+					if (d && d.isValid()) {
+						let ps = prop.schedule ?? [];
+						prop.schedule = ps;
+						prop.schedule.push({
+							d,
+							isImport: true
+						});
+					}
+				} else if (t == CsvType.PropertiesLastInspection && Object.keys(LASTINSPECT_FIELDS).find(k => k === key)) {
 					const d = rowObj[key] as moment.Moment;
 					if (d && d.isValid()) {
 						let ps = prop.schedule ?? [];

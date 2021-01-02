@@ -203,6 +203,10 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 			sortScheduleItems(ps.schedule);
 
 			for (let i=0; i<ps.schedule.length-1; ++i) {
+				// Skip past existing schedule dates before the scheduler algorithm should consider them
+				if (ps.schedule[i+1].d.isBefore(scheduleStart)) {
+					continue;
+				}
 				const diff = ps.schedule[i+1].d.diff(ps.schedule[i].d, 'hours');
 				if (diff > maxGap) {
 					const entry = moment(ps.schedule[i].d).add( maxGap / 2, 'hours').startOf('day');
@@ -211,9 +215,12 @@ function computeScheduleDates(data: Property[], options: ScheduleOptions) : Prop
 				}
 			}
 
-			// reset scheduling start to the last scheduled date plus a buffer
+			// reset scheduling start to the last scheduled date plus a buffer if it is later
 			const last = ps.schedule[ps.schedule.length-1].d;
-			scheduleStart = moment(last).add(3, 'months');
+			if (scheduleStart.isBefore(last)) {
+				scheduleStart = moment(last).add(3, 'months');
+				console.log(pstring(ps) + ': moved schedule start due to existing schedule ending at ' + last.format(DATE_FORMAT));
+			}
 		}
 
 		//console.log(pstring(ps) + ': adding dates every 3 months until ' + scheduleEnd.format(DATE_FORMAT));

@@ -111,3 +111,46 @@ export function mergeSchedules(base: Property[], prev: Property[]) : Property[] 
 
 	return rv;
 }
+
+/**
+ * Truncate schedules in base where "lasts" has a last inspection date. Retain scheduled entries
+ * prior to the inspection date and add it to the schedule.
+ * Throw a string on error
+ */
+export function truncateSchedules(base: Property[], lasts: Property[]) : Property[] {
+	let rv = [...base];
+	base.forEach(p => {
+		let propLast = lasts.find(pp =>
+			p.address === pp.address &&
+			p.city === pp.city &&
+			p.state === pp.state &&
+			p.zip === pp.zip &&
+			(p.unit ? p.unit === pp.unit : true) // if base prop has no unit, ignore the comparison
+		);
+
+		if (!propLast || !propLast.schedule || propLast.schedule.length == 0) {
+			return;
+		}
+
+		const lastInspection = propLast.schedule[0].d;
+
+		// overwrite an empty schedule
+		if (!p.schedule) {
+			p.schedule = propLast?.schedule;
+			return;
+		}
+
+		let i=0;
+		while (i < p.schedule.length) {
+			if (!p.schedule[i].d.isBefore(lastInspection)) {
+				console.log('Removing schedule entry '+p.schedule[i].d.format(DATE_FORMAT)+' from ' + pstring(p) + ' after last inspection date: ' + lastInspection.format(DATE_FORMAT));
+				p.schedule.splice(i, 1);
+			} else {
+				i++;
+			}
+		}
+		p.schedule.push({ d: lastInspection, isImport: true });
+	});
+
+	return rv;
+}

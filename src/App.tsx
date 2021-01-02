@@ -5,7 +5,7 @@ import { makeStyles, TableCell, Table, TableHead, TableRow, TableSortLabel, Tabl
 import MomentUtils from '@date-io/moment';
 import { KeyboardDatePicker, MuiPickersUtilsProvider } from "@material-ui/pickers";
 import { CsvType, toCSVInspections, toCSVSchedule } from './util/csvutil';
-import { Property, mergeTenants, mergeSchedules, pstring } from './property';
+import { Property, mergeTenants, mergeSchedules, pstring, truncateSchedules } from './property';
 import { ColumnData, handleSortChange, SortData, sortRows } from './util/tableutil';
 import { DropZone } from './components/DropZone';
 import { AppHeader } from './components/AppHeader';
@@ -44,6 +44,9 @@ export default function App() {
 			<DropZone message={<>Drop the <strong>previous schedule</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
 				type={CsvType.PropertiesSchedules}
 				handleData={priorScheduleUpdated} />
+			<DropZone message={<>Drop the <strong>last inspection dates list</strong> file here <span style={{fontSize: 'smaller' }}>(or click to select file)</span></>}
+				type={CsvType.PropertiesLastInspection}
+				handleData={priorScheduleTruncated} />
 		</div>
 		{ propertyList.length > 0 && <span style={{color: '#0f0' }}>{propertyList.length} properties available.</span>}
 		{ propertyList.length == 0 && <span style={{color: '#f00' }}>{propertyList.length} properties available.</span>}
@@ -188,6 +191,27 @@ export default function App() {
 		}
 
 		let pss = mergeSchedules(propertyList, plist);
+		pss = buildSchedule(pss, getOptions());
+		setPropertyList(pss);
+		return undefined;
+	};
+
+	/**
+	 * Provides parsed property details including schedules
+	 */
+	function priorScheduleTruncated(plist: Property[]) : string | undefined {
+		if (propertyList.length == 0) {
+			return 'No base property list, upload one first';
+		}
+		if (plist.find(p => p.tenants)) {
+			return 'Invalid format for last-dates property list - expecting no tenant columns'
+		}
+
+		if (!plist.find(p => p.schedule)) {
+			return 'Invalid format for last-dates property list - expecting schedule columns'
+		}
+
+		let pss = truncateSchedules(propertyList, plist);
 		pss = buildSchedule(pss, getOptions());
 		setPropertyList(pss);
 		return undefined;
