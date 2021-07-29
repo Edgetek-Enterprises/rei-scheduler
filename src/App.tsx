@@ -1,7 +1,7 @@
 import React from 'react';
 import moment from 'moment';
 import './App.css';
-import { makeStyles, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme } from '@material-ui/core';
+import { makeStyles, TableCell, Table, TableHead, TableRow, TableSortLabel, TableBody, Theme, Slider } from '@material-ui/core';
 import MomentUtils from '@date-io/moment';
 import { KeyboardDatePicker, MuiPickersUtilsProvider } from "@material-ui/pickers";
 import { CsvType, toCSVInspections, toCSVSchedule } from './util/csvutil';
@@ -10,7 +10,7 @@ import { ColumnData, handleSortChange, SortData, sortRows } from './util/tableut
 import { DropZone } from './components/DropZone';
 import { AppHeader } from './components/AppHeader';
 import { buildSchedule, ScheduleOptions } from './scheduler';
-import { MultiButton } from './components/MultiButton';
+import { ButtonOption, MultiButton } from './components/MultiButton';
 
 export const DATE_FORMAT = 'MM/DD/YYYY';
 
@@ -22,6 +22,8 @@ export default function App() {
 	const columnData = getColumns();
 	const [sorted, setSorted] = React.useState<SortData<Property>>({ col: columnData[0], dir: 'asc' });
 	const [filterText, setFilterText] = React.useState<string>('');
+	const [maxPerDay, setMaxPerDay] = React.useState<number>(5);
+	const [maxPerWeek, setMaxPerWeek] = React.useState<number>(7);
 	const classes = STYLES();
 
 	let items = propertyList;
@@ -62,9 +64,11 @@ export default function App() {
 					value={filterText}
 				/>
 				<span style={{padding: '0px 20px'}}>
-					<MultiButton content={[
-						{title:'Inspections', handler: downloadInspections},
-						{title:'Schedule', handler: downloadSchedule}]}
+					<MultiButton
+						title={(bo) => 'Download CSV'}
+						content={[
+							{title:'Inspections', handler: downloadInspections},
+							{title:'Schedule', handler: downloadSchedule}]}
 					/>
 				</span>
 
@@ -72,13 +76,39 @@ export default function App() {
 				<MuiPickersUtilsProvider utils={MomentUtils}>
 					<KeyboardDatePicker
 						value={startDate}
-						style={{width:'120px'}}
+						style={{width:'140px'}}
 						placeholder={startDate.format(DATE_FORMAT)}
-						onChange={(date) => startDateUpdated((date as moment.Moment) ?? moment())}
+						onChange={(date) => {
+							const m = (date as moment.Moment) ?? moment();
+							if (!m.isValid()) {
+								return;
+							}
+							setStartDate(m);
+							optionsUpdated();
+						}}
 						format={DATE_FORMAT}
 						rifmFormatter={(str) => str}
 					/>
 				</MuiPickersUtilsProvider>
+
+				<span style={{padding: '0px 20px'}}>
+					<MultiButton
+						title={(bo,i) => 'Max per day: ' + (i+1)}
+						content={Array.from({length: 30}, (value, key) => key).map(
+							i => {return {title:''+(i+1), handler: () => {setMaxPerDay(i+1); optionsUpdated(); }} as ButtonOption;}
+						)}
+						selectedIndex={maxPerDay-1}
+					/>
+				</span>
+				<span style={{padding: '0px 20px'}}>
+					<MultiButton
+						title={(bo,i) => 'Max per week: ' + (i+1)}
+						content={Array.from({length: 30}, (value, key) => key).map(
+							i => {return {title:''+(i+1), handler: () => {setMaxPerWeek(i+1); optionsUpdated(); }} as ButtonOption;}
+						)}
+						selectedIndex={maxPerWeek-1}
+					/>
+				</span>
 			</div>
 			<Table
 				aria-labelledby="tableTitle"
@@ -121,11 +151,7 @@ export default function App() {
 		</div>
 	</div>;
 
-	function startDateUpdated(m: moment.Moment) {
-		if (!m.isValid()) {
-			return;
-		}
-		setStartDate(m);
+	function optionsUpdated() {
 		propertyList.forEach(p => {
 			p.schedule = (p.schedule ?? []).filter(s => s.isImport);
 			console.log('Computed schedule reset for ' + pstring(p));
@@ -226,8 +252,8 @@ export default function App() {
 			moveInBuffer: (d) => moment(d).add(3, 'months'),
 			// No move-out buffer
 			moveOutBuffer: (d) => d,//moment(d).add(-3, 'months'),
-			maxPerDay: 5,
-			maxPerWeek: 7,
+			maxPerDay: maxPerDay,
+			maxPerWeek: maxPerWeek,
 			pushBlackout: (d) => {
 				let pass = false;
 				while (!pass) {
