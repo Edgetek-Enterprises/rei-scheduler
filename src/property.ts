@@ -34,6 +34,18 @@ export function pstring(p: Property) : string {
 	return p.address + ' ' + p.unit;
 }
 
+/** Identifies whether two properties are different "unit" entries in the same address */
+export function sameUnit(p: Property, p2: Property) : boolean {
+	if ((p.unit === undefined && p2.unit !== undefined) || (p.unit !== undefined && p2.unit === undefined)) {
+		return false;
+	}
+	const same = p.address === p2.address
+		&& p.city === p2.city
+		&& p.state === p2.state
+		&& p.zip === p2.zip;
+	return same;
+}
+
 export function selist(ses: ScheduleEntry[]) : string {
 	return ses.map(se => pstring(se.p) + ' ' + se.si.d.format(DATE_FORMAT)).join(' ');
 }

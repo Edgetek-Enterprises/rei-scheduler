@@ -1,6 +1,6 @@
 import moment from "moment";
 import { DATE_FORMAT } from "./App";
-import { Property, pstring, selist } from "./property";
+import { Property, pstring, sameUnit, selist } from "./property";
 
 export interface ScheduleItem {
 	d: moment.Moment;
@@ -340,26 +340,41 @@ function applyScheduleConstraints(schedule: ScheduleEntry[], options: ScheduleOp
 		function capacityShift(same: ScheduleEntry[], max: number) : ScheduleEntry[] {
 			let countToMove = same.length - max;
 			let toMove : ScheduleEntry[] = [];
-			let sameGroup = same.filter(se => se.p.zip === entry.p.zip);
-			let otherGroups = same.filter(se => se.p.zip !== entry.p.zip);
 
-			if (otherGroups.length >= countToMove) {
-				// if there are enough to move in a different group than curr, take the whole group
-				while (countToMove > 0 && otherGroups.length > 1) {
-					const mv = otherGroups.filter(se => se.p.zip === otherGroups[otherGroups.length-1].p.zip);
+			let groups : ScheduleEntry[][] = [];
+			// First, group by address match
+			const sameProp = same.filter(se => sameUnit(se.p, entry.p));
+			if (sameProp.length > 0) {
+				groups.push(sameProp);
+			}
+			const notSameProp = same.filter(se => !sameProp.includes(se));
+
+			// Next, group by zip code
+			const sameZip = notSameProp.filter(se => se.p.zip === entry.p.zip);
+			if (sameZip.length > 0) {
+				groups.push(sameZip);
+			}
+			let otherZip = notSameProp.filter(se => se.p.zip !== entry.p.zip);
+			if (otherZip.length > 0) {
+				groups.push(otherZip);
+			}
+
+			groups.reverse();
+
+			for (let g= 0; g < groups.length; ++g) {
+				// If the group is not enough, move the whole group
+				if (countToMove >= groups[g].length) {
+					groups[g].forEach(se => toMove.push(se));
+					countToMove -= groups[g].length;
+					groups[g] = [];
+				}
+				// if there are enough to move from the group, take them by unit groups
+				while (countToMove > 0 && groups[g].length > 0) {
+					const mv = groups[g].filter(se => sameUnit(se.p, groups[g][groups[g].length-1].p));
 					mv.forEach(se => toMove.push(se));
 					countToMove -= mv.length;
-					otherGroups = otherGroups.filter(se => !mv.includes(se));
+					groups[g] = groups[g].filter(se => !mv.includes(se));
 				}
-			}
-			if (countToMove > 0 && otherGroups.length > 0) {
-				otherGroups.forEach(se => toMove.push(se));
-				countToMove -= otherGroups.length;
-			}
-
-			// still more to move and groups exhausted, just pick the tail
-			if (countToMove > 0) {
-				toMove.push(...sameGroup.slice(sameGroup.length - countToMove));
 			}
 			toMove.forEach(e => e.si.d.add(1, 'day'));
 			return toMove;
