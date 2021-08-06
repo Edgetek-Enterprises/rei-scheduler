@@ -36,7 +36,7 @@ export const AppHeader = () => {
 			}}
 		>
 			<div>
-				Version: 2020.07.28
+				Version: 2021.07.28
 			</div>
 			<div>
 				Input a <strong>base properties list</strong> to determine what properties to use. If it contains a historical schedule, this will also be imported.
